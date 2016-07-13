@@ -18,7 +18,7 @@ package org.gradle.language.base.plugins
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
-import org.gradle.api.internal.project.DefaultProject
+import org.gradle.api.internal.project.ProjectInternal
 import org.gradle.api.tasks.Delete
 import org.gradle.util.TestUtil
 import spock.lang.Specification
@@ -28,7 +28,15 @@ import static org.gradle.language.base.plugins.LifecycleBasePlugin.*
 import static org.hamcrest.Matchers.instanceOf
 
 class LifecycleBasePluginTest extends Specification {
-    private final DefaultProject project = TestUtil.createRootProject()
+    private final ProjectInternal project = TestUtil.createRootProject()
+
+    def "can apply plugin by id"() {
+        given:
+        project.apply plugin: 'lifecycle-base'
+
+        expect:
+        project.plugins.hasPlugin(LifecycleBasePlugin)
+    }
 
     public void createsTasksAndAppliesMappings() {
         when:
@@ -61,7 +69,7 @@ class LifecycleBasePluginTest extends Specification {
     public void addsACleanRule() {
         given:
         Task test = project.task('test')
-        test.outputs.files(project.buildDir)
+        test.outputs.dir(project.buildDir)
 
         when:
         project.pluginManager.apply(LifecycleBasePlugin)

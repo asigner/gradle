@@ -19,8 +19,6 @@ import org.gradle.launcher.daemon.server.api.DaemonStoppedException
 import org.gradle.launcher.daemon.server.api.DaemonUnavailableException
 import org.gradle.test.fixtures.concurrent.ConcurrentSpec
 
-import java.util.concurrent.TimeUnit
-
 class DaemonStateCoordinatorTest extends ConcurrentSpec {
     final Runnable onStartCommand = Mock(Runnable)
     final Runnable onFinishCommand = Mock(Runnable)
@@ -49,24 +47,10 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         coordinator.stop()
 
         when:
-        coordinator.stopOnIdleTimeout(10000, TimeUnit.SECONDS)
+        coordinator.awaitStop()
 
         then:
         coordinator.stopped
-    }
-
-    def "await idle timeout waits for specified time and then stops"() {
-        when:
-        operation.waitForIdle {
-            coordinator.stopOnIdleTimeout(100, TimeUnit.MILLISECONDS)
-        }
-
-        then:
-        coordinator.stopped
-        operation.waitForIdle.duration in approx(100)
-
-        and:
-        0 * _._
     }
 
     def "runs actions when command is run"() {
@@ -139,7 +123,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         Runnable command = Mock()
 
         given:
-        coordinator.requestStop()
+        coordinator.requestStop("REASON")
 
         when:
         coordinator.runCommand(command, "command")
@@ -153,7 +137,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         Runnable command = Mock()
 
         given:
-        coordinator.requestForcefulStop()
+        coordinator.requestForcefulStop("stop")
 
         when:
         coordinator.runCommand(command, "command")
@@ -167,7 +151,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         Runnable command = Mock()
 
         given:
-        coordinator.requestStop()
+        coordinator.requestStop("REASON")
 
         when:
         coordinator.runCommand(command, "command")
@@ -238,7 +222,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         0 * _._
 
         when:
-        coordinator.stopOnIdleTimeout(10000, TimeUnit.SECONDS)
+        coordinator.awaitStop()
 
         then:
         IllegalStateException illegalStateException = thrown()
@@ -303,7 +287,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         0 * _._
 
         when:
-        coordinator.stopOnIdleTimeout(10000, TimeUnit.SECONDS)
+        coordinator.awaitStop()
 
         then:
         IllegalStateException illegalStateException = thrown()
@@ -315,7 +299,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         coordinator.idle
 
         when:
-        coordinator.requestStop()
+        coordinator.requestStop("REASON")
 
         then:
         coordinator.stopped
@@ -331,7 +315,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         then:
         1 * command.run() >> {
             assert coordinator.busy
-            coordinator.requestStop()
+            coordinator.requestStop("REASON")
             assert !coordinator.stopped
             assert coordinator.willRefuseNewCommands
         }
@@ -344,6 +328,30 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         0 * _._
     }
 
+    def "multiple stop requests are handled cleanly"() {
+        Runnable command = Mock()
+
+        when:
+        coordinator.runCommand(command, "some command")
+
+        then:
+        1 * command.run() >> {
+            assert coordinator.busy
+            coordinator.requestStop("REASON")
+            assert coordinator.busy
+            coordinator.requestStop("REASON")
+            assert coordinator.busy
+            coordinator.requestStop("REASON")
+            assert coordinator.busy
+        }
+
+        and:
+        coordinator.stopped
+
+        and:
+        1 * onStartCommand.run()
+    }
+
     def "requestStop stops when command fails"() {
         Runnable command = Mock()
         RuntimeException failure = new RuntimeException()
@@ -354,7 +362,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         then:
         1 * command.run() >> {
             assert coordinator.busy
-            coordinator.requestStop()
+            coordinator.requestStop("REASON")
             assert !coordinator.stopped
             assert coordinator.willRefuseNewCommands
             throw failure
@@ -381,8 +389,8 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         }
         async {
             thread.blockUntil.actionStarted
-            coordinator.requestStop()
-            coordinator.stopOnIdleTimeout(10000, TimeUnit.SECONDS)
+            coordinator.requestStop("REASON")
+            coordinator.awaitStop()
             instant.idle
         }
 
@@ -405,7 +413,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         !coordinator.stopped
 
         when:
-        coordinator.requestForcefulStop()
+        coordinator.requestForcefulStop("stop")
 
         then:
         coordinator.willRefuseNewCommands
@@ -426,7 +434,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
 
         then:
         DaemonStoppedException e = thrown()
-        e.message == "Gradle build daemon has been stopped."
+        e.message == "Gradle build daemon has been stopped: stop from test"
 
         and:
         coordinator.willRefuseNewCommands
@@ -436,7 +444,7 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         1 * onStartCommand.run()
         1 * command.run() >> {
             assert !coordinator.stopped
-            coordinator.requestForcefulStop()
+            coordinator.requestForcefulStop("stop from test")
             assert coordinator.stopped
             thread.blockUntil.run
         }
@@ -452,8 +460,8 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         }
         async {
             thread.blockUntil.startAction
-            coordinator.requestForcefulStop()
-            coordinator.stopOnIdleTimeout(10000, TimeUnit.SECONDS)
+            coordinator.requestForcefulStop("stop")
+            coordinator.awaitStop()
             instant.idle
         }
 
@@ -592,5 +600,27 @@ class DaemonStateCoordinatorTest extends ConcurrentSpec {
         }
         2 * onFinishCommand.run()
         0 * _._
+    }
+
+    def "idle millis is 0 if daemon is busy"() {
+        given:
+        Runnable command = Mock()
+
+        when:
+        coordinator.runCommand(command, "some command")
+
+        then:
+        1 * command.run() >> {
+            coordinator.getIdleMillis(System.currentTimeMillis()) == 0L
+        }
+    }
+
+    def "idle millis is > 0 when daemon is idle"() {
+        when:
+        coordinator.lastActivityAt = 100
+
+        then:
+        coordinator.idle
+        coordinator.getIdleMillis(110) == 10
     }
 }

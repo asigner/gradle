@@ -15,7 +15,6 @@
  */
 
 package org.gradle.nativeplatform.platform
-
 import net.rubygrapefruit.platform.Native
 import net.rubygrapefruit.platform.SystemInfo
 import org.gradle.internal.os.OperatingSystem
@@ -26,13 +25,12 @@ import org.gradle.nativeplatform.fixtures.binaryinfo.DumpbinBinaryInfo
 import org.gradle.nativeplatform.fixtures.binaryinfo.OtoolBinaryInfo
 import org.gradle.nativeplatform.fixtures.binaryinfo.ReadelfBinaryInfo
 import org.gradle.test.fixtures.file.TestFile
-import org.gradle.test.fixtures.file.LeaksFileHandles
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
+import spock.lang.Issue
 import spock.lang.Unroll
 
 @Requires(TestPrecondition.NOT_UNKNOWN_OS)
-@LeaksFileHandles
 class BinaryNativePlatformIntegrationTest extends AbstractInstalledToolChainIntegrationSpec {
     def testApp = new PlatformDetectingTestApp()
     def os = OperatingSystem.current()
@@ -91,7 +89,7 @@ model {
         }
     }
     components {
-        main.targetPlatform "x86"
+        main { targetPlatform "x86" }
     }
 }
 """
@@ -246,8 +244,8 @@ model {
             binaryInfo(objectFileFor(file("src/main/cpp/main.cpp"), "build/objs/main/x86_64/mainCpp")).arch.name == "x86_64"
         }
 
-        // ARM only supported on visualCpp 2013
-        if (toolChain.meets(ToolChainRequirement.VisualCpp2013)) {
+        // ARM only supported on visualCpp 2012+
+        if (toolChain.meets(ToolChainRequirement.VISUALCPP_2012_OR_NEWER)) {
             executable("build/exe/main/arm/main").binaryInfo.arch.name == "arm"
             binaryInfo(objectFileFor(file("src/main/cpp/main.cpp"), "build/objs/main/arm/mainCpp")).arch.name == "arm"
         } else {
@@ -285,7 +283,7 @@ model {
         }
     }
     components {
-        main.targetPlatform "$currentOs"
+        main { targetPlatform "$currentOs" }
     }
     binaries {
         all {
@@ -322,7 +320,7 @@ model {
         }
     }
     components {
-        main.targetPlatform 'unavailable'
+        main { targetPlatform 'unavailable' }
     }
 }
 """
@@ -352,7 +350,7 @@ model {
         main
     }
     components {
-        main.targetPlatform "unknown"
+        main { targetPlatform "unknown" }
     }
 }
 """
@@ -361,7 +359,7 @@ model {
         fails "mainExecutable"
 
         then:
-        failure.assertHasCause("Exception thrown while executing model rule: NativeComponentRules#createBinaries")
+        failure.assertHasCause("Exception thrown while executing model rule: NativeComponentModelPlugin.Rules#createBinaries")
         failure.assertHasCause("Invalid NativePlatform: unknown")
     }
 
@@ -393,6 +391,21 @@ model {
 
         then:
         failure.assertHasDescription("No shared library binary available for library 'hello' with [flavor: 'default', platform: 'one', buildType: 'debug']")
+    }
+
+    @Issue("GRADLE-3499")
+    def "can create a binary which name contains dots"() {
+        when:
+        buildFile << '''
+            model {
+                components {
+                    'foo.bar'(NativeLibrarySpec)
+                }
+            }
+        '''
+        then:
+        succeeds 'components'
+
     }
 
     def binaryInfo(TestFile file) {

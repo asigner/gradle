@@ -50,8 +50,6 @@ import java.util.Properties;
 public class Wrapper extends DefaultTask {
     public static final String DEFAULT_DISTRIBUTION_PARENT_NAME = Install.DEFAULT_DISTRIBUTION_PATH;
 
-    private String distributionUrl;
-
     /**
      * Specifies how the wrapper path should be interpreted.
      */
@@ -61,21 +59,12 @@ public class Wrapper extends DefaultTask {
 
     private Object scriptFile;
     private Object jarFile;
-
-    @Input
     private String distributionPath;
-
-    @Input
     private PathBase distributionBase = PathBase.GRADLE_USER_HOME;
-
+    private String distributionUrl;
     private GradleVersion gradleVersion;
-
-    @Input
     private String archivePath;
-
-    @Input
     private PathBase archiveBase = PathBase.GRADLE_USER_HOME;
-
     private final DistributionLocator locator = new DistributionLocator();
 
     public Wrapper() {
@@ -136,6 +125,9 @@ public class Wrapper extends DefaultTask {
         return getProject().file(scriptFile);
     }
 
+    /**
+     * The file to write the wrapper script to.
+     */
     public void setScriptFile(Object scriptFile) {
         this.scriptFile = scriptFile;
     }
@@ -157,6 +149,9 @@ public class Wrapper extends DefaultTask {
         return getProject().file(jarFile);
     }
 
+    /**
+     * The file to write the wrapper jar file to.
+     */
     public void setJarFile(Object jarFile) {
         this.jarFile = jarFile;
     }
@@ -177,6 +172,7 @@ public class Wrapper extends DefaultTask {
      *
      * @see #setDistributionPath(String)
      */
+    @Input
     public String getDistributionPath() {
         return distributionPath;
     }
@@ -196,6 +192,7 @@ public class Wrapper extends DefaultTask {
      *
      * @see #setGradleVersion(String)
      */
+    @Input
     public String getGradleVersion() {
         return gradleVersion.getVersion();
     }
@@ -232,6 +229,18 @@ public class Wrapper extends DefaultTask {
         }
     }
 
+    /**
+     * The URL to download the gradle distribution from.
+     *
+     * <p>If not set, the download URL is the default for the specified {@link #getGradleVersion()}.
+     *
+     * <p>If {@link #getGradleVersion()} is not set, will return null.
+     *
+     * <p>The wrapper downloads a certain distribution only once and caches it. If your distribution base is the
+     * project, you might submit the distribution to your version control system. That way no download is necessary at
+     * all. This might be in particular interesting, if you provide a custom gradle snapshot to the wrapper, because you
+     * don't need to provide a download server then.
+     */
     @Option(option = "gradle-distribution-url", description = "The URL to download the gradle distribution from.")
     public void setDistributionUrl(String url) {
         this.distributionUrl = url;
@@ -241,6 +250,7 @@ public class Wrapper extends DefaultTask {
      * The distribution base specifies whether the unpacked wrapper distribution should be stored in the project or in
      * the gradle user home dir.
      */
+    @Input
     public PathBase getDistributionBase() {
         return distributionBase;
     }
@@ -257,6 +267,7 @@ public class Wrapper extends DefaultTask {
      * Returns the path where the gradle distributions archive should be saved (i.e. the parent dir). The path is
      * relative to the archive base directory.
      */
+    @Input
     public String getArchivePath() {
         return archivePath;
     }
@@ -273,6 +284,7 @@ public class Wrapper extends DefaultTask {
      * The archive base specifies whether the unpacked wrapper distribution should be stored in the project or in the
      * gradle user home dir.
      */
+    @Input
     public PathBase getArchiveBase() {
         return archiveBase;
     }

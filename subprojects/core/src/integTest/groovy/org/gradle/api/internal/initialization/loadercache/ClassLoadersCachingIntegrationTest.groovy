@@ -16,7 +16,7 @@
 
 package org.gradle.api.internal.initialization.loadercache
 
-import org.gradle.integtests.fixtures.PersistentBuildProcessIntegrationTest
+import org.gradle.integtests.fixtures.longlived.PersistentBuildProcessIntegrationTest
 import org.gradle.integtests.fixtures.executer.ExecutionResult
 import org.gradle.test.fixtures.file.LeaksFileHandles
 import spock.lang.Ignore
@@ -561,7 +561,17 @@ class ClassLoadersCachingIntegrationTest extends PersistentBuildProcessIntegrati
         then:
         assertCacheSizeChange(-2)
         isCached("a")
-        isNotCached("a:a")
+        isCached("a:a") // cached in cross-build cache
+
+        when:
+        file("a/a/build.gradle").text = getIsCachedCheck() + '// add some random chars'
+        run()
+
+        then:
+        assertCacheDidNotGrow()
+        isCached("a")
+        isNotCached("a:a") // cached in cross-build cache
+
     }
 
     @Ignore

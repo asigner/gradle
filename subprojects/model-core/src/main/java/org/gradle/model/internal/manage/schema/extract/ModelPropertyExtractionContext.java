@@ -16,8 +16,13 @@
 
 package org.gradle.model.internal.manage.schema.extract;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Ordering;
 import org.gradle.api.Nullable;
+import org.gradle.internal.reflect.PropertyAccessorType;
 import org.gradle.model.internal.type.ModelType;
 
 import java.lang.reflect.Method;
@@ -25,6 +30,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.gradle.internal.reflect.PropertyAccessorType.hasGetter;
+import static org.gradle.internal.reflect.PropertyAccessorType.hasSetter;
 
 public class ModelPropertyExtractionContext {
 
@@ -41,11 +49,11 @@ public class ModelPropertyExtractionContext {
     }
 
     public boolean isReadable() {
-        return accessors.containsKey(PropertyAccessorType.IS_GETTER) || accessors.containsKey(PropertyAccessorType.GET_GETTER);
+        return hasGetter(accessors.keySet());
     }
 
     public boolean isWritable() {
-        return accessors.containsKey(PropertyAccessorType.SETTER);
+        return hasSetter(accessors.keySet());
     }
 
     public void addAccessor(PropertyAccessorExtractionContext accessor) {

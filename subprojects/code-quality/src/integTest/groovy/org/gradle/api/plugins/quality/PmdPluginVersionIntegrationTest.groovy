@@ -15,6 +15,8 @@
  */
 package org.gradle.api.plugins.quality
 
+import org.gradle.test.fixtures.file.LeaksFileHandles
+import org.gradle.util.TestPrecondition
 import org.gradle.util.VersionNumber
 import org.hamcrest.Matcher
 
@@ -22,6 +24,7 @@ import static org.gradle.util.Matchers.containsLine
 import static org.hamcrest.Matchers.containsString
 import static org.hamcrest.Matchers.not
 
+@LeaksFileHandles
 class PmdPluginVersionIntegrationTest extends AbstractPmdPluginVersionIntegrationTest {
 
     def setup() {
@@ -36,7 +39,9 @@ class PmdPluginVersionIntegrationTest extends AbstractPmdPluginVersionIntegratio
             pmd {
                 toolVersion = '$version'
             }
-        """
+
+            ${!TestPrecondition.FIX_TO_WORK_ON_JAVA9.fulfilled ? "sourceCompatibility = 1.6" : ""}
+        """.stripIndent()
     }
 
     def "analyze good code"() {
@@ -205,7 +210,7 @@ class PmdPluginVersionIntegrationTest extends AbstractPmdPluginVersionIntegratio
         // PMD Lvl 2 Warning BooleanInstantiation
         // PMD Lvl 3 Warning OverrideBothEqualsAndHashcode
         file("src/test/java/org/gradle/Class1Test.java") <<
-            "package org.gradle; class Class1Test { public boolean equals(Object arg) { return new Boolean(\"true\"); } }"
+            "package org.gradle; class Class1Test { public boolean equals(Object arg) { return java.lang.Boolean.valueOf(true); } }"
     }
 
     private customCode() {

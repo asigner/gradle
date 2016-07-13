@@ -16,7 +16,10 @@
 
 package org.gradle.api.plugins.quality
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
+import org.gradle.test.fixtures.file.LeaksFileHandles
+import org.gradle.util.TestPrecondition
 
+@LeaksFileHandles
 class PmdPluginDependenciesIntegrationTest extends AbstractIntegrationSpec {
 
     def setup() {
@@ -43,7 +46,9 @@ class PmdPluginDependenciesIntegrationTest extends AbstractIntegrationSpec {
                 //downgrade version:
                 pmd "$testDependency"
             }
-        """
+
+            ${!TestPrecondition.FIX_TO_WORK_ON_JAVA9.fulfilled ? "sourceCompatibility = 1.6" : ""}
+        """.stripIndent()
 
         then:
         fails("check")

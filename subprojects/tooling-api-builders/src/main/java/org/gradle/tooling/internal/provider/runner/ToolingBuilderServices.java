@@ -16,6 +16,7 @@
 
 package org.gradle.tooling.internal.provider.runner;
 
+import org.gradle.internal.composite.CompositeBuildActionRunner;
 import org.gradle.internal.invocation.BuildActionRunner;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.service.scopes.PluginServiceRegistry;
@@ -33,6 +34,10 @@ public class ToolingBuilderServices implements PluginServiceRegistry {
                                                                 new BuildModelActionRunner(),
                                                                 new TestExecutionRequestActionRunner(),
                                                                 new ClientProvidedBuildActionRunner())));
+            }
+
+            CompositeBuildActionRunner createCompositeBuildActionRunner() {
+                return new CompositeBuildModelActionRunner();
             }
         });
     }

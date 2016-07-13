@@ -17,8 +17,6 @@
 package org.gradle.jvm.test
 
 import org.gradle.integtests.fixtures.DefaultTestExecutionResult
-import org.gradle.util.Requires
-import org.gradle.util.TestPrecondition
 
 class JUnitComponentUnderTestIntegrationTest extends AbstractJUnitTestExecutionIntegrationSpec {
 
@@ -71,7 +69,7 @@ class JUnitComponentUnderTestIntegrationTest extends AbstractJUnitTestExecutionI
         executedAndNotSkipped ':compileGreeterJarGreeterJava', ':compileMyTestGreeterJarBinaryMyTestJava', ':myTestGreeterJarBinaryTest'
 
         and:
-        def result = new DefaultTestExecutionResult(testDirectory)
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest', 'greeterJar')
         result.assertTestClassesExecuted('com.acme.GreeterTest', 'com.acme.internal.UtilsTest')
         result.testClass('com.acme.GreeterTest')
             .assertTestCount(1, 0, 0)
@@ -93,7 +91,7 @@ class JUnitComponentUnderTestIntegrationTest extends AbstractJUnitTestExecutionI
 
         then:
         executedAndNotSkipped ':compileGreeterJarGreeterJava', ':myTestGreeterJarBinaryTest'
-        def result = new DefaultTestExecutionResult(testDirectory)
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest', 'greeterJar')
         result.assertTestClassesExecuted('com.acme.GreeterTest')
         result.testClass('com.acme.GreeterTest')
             .assertTestCount(1, 0, 0)
@@ -131,7 +129,7 @@ class JUnitComponentUnderTestIntegrationTest extends AbstractJUnitTestExecutionI
 
         then:
         fails ':myTestGreeterJarBinaryTest'
-        def result = new DefaultTestExecutionResult(testDirectory)
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest', 'greeterJar')
         result.assertTestClassesExecuted('com.acme.GreeterTest')
         result.testClass('com.acme.GreeterTest')
             .assertTestCount(1, 1, 0)
@@ -152,7 +150,6 @@ class JUnitComponentUnderTestIntegrationTest extends AbstractJUnitTestExecutionI
         outputContains 'myTestGreeterJarBinaryTest - Runs test suite \'myTest:greeterJarBinary\'.'
     }
 
-    @Requires(TestPrecondition.JDK7_OR_LATER)
     def "one test suite binary is created for each variant of component under test"() {
         given:
         applyJUnitPlugin()
@@ -163,15 +160,26 @@ class JUnitComponentUnderTestIntegrationTest extends AbstractJUnitTestExecutionI
 
         when:
         succeeds ':myTestGreeterJava6JarBinaryTest'
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest', 'greeterJava6Jar')
 
         then:
         executedAndNotSkipped ':myTestGreeterJava6JarBinaryTest', ':compileGreeterJava6JarGreeterJava'
+        result.assertTestClassesExecuted('com.acme.GreeterTest')
+        result.testClass('com.acme.GreeterTest')
+            .assertTestCount(1, 0, 0)
+            .assertTestsExecuted('testGreeting')
 
         when:
         succeeds ':myTestGreeterJava7JarBinaryTest'
+        result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest', 'greeterJava7Jar')
 
         then:
         executedAndNotSkipped ':myTestGreeterJava7JarBinaryTest', ':compileGreeterJava7JarGreeterJava'
+        result.assertTestClassesExecuted('com.acme.GreeterTest')
+        result.testClass('com.acme.GreeterTest')
+            .assertTestCount(1, 0, 0)
+            .assertTestsExecuted('testGreeting')
+
     }
 
     private void greeterLibrary() {

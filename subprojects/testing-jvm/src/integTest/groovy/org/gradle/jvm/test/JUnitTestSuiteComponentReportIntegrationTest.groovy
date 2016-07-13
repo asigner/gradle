@@ -17,8 +17,6 @@
 package org.gradle.jvm.test
 
 import org.gradle.api.reporting.components.AbstractComponentReportIntegrationTest
-import org.gradle.util.Requires
-import org.gradle.util.TestPrecondition
 
 class JUnitTestSuiteComponentReportIntegrationTest extends AbstractComponentReportIntegrationTest {
     def setup() {
@@ -51,7 +49,7 @@ class JUnitTestSuiteComponentReportIntegrationTest extends AbstractComponentRepo
         succeeds "components"
 
         then:
-        outputMatches output, """
+        outputMatches """
 JUnit test suite 'test'
 -----------------------
 
@@ -92,7 +90,7 @@ model {
         succeeds "components"
 
         then:
-        outputMatches output, """
+        outputMatches """
 JUnit test suite 'functionalTest'
 ---------------------------------
 
@@ -153,7 +151,7 @@ Binaries
         succeeds "components"
 
         then:
-        outputMatches output, """
+        outputMatches """
 JVM library 'main'
 ------------------
 
@@ -188,6 +186,7 @@ Binaries
         run using task: :unitTestMainJarBinaryTest
         target platform: $currentJava
         JUnit version: 4.12
+        component under test: JVM library 'main'
         binary under test: Jar 'main:jar'
         tool chain: $currentJdk
         classes dir: build/classes/unitTest/mainJarBinary
@@ -195,7 +194,6 @@ Binaries
 """
     }
 
-    @Requires(TestPrecondition.JDK7_OR_LATER)
     def "shows details of test suite with component under test with multiple variants"() {
         given:
         buildFile << '''
@@ -219,7 +217,7 @@ Binaries
         succeeds "components"
 
         then:
-        outputMatches output, """
+        outputMatches """
 JVM library 'main'
 ------------------
 
@@ -262,6 +260,7 @@ Binaries
         run using task: :unitTestMainJava6JarBinaryTest
         target platform: Java SE 6
         JUnit version: 4.12
+        component under test: JVM library 'main'
         binary under test: Jar 'main:java6Jar'
         tool chain: $currentJdk
         classes dir: build/classes/unitTest/mainJava6JarBinary
@@ -271,6 +270,7 @@ Binaries
         run using task: :unitTestMainJava7JarBinaryTest
         target platform: Java SE 7
         JUnit version: 4.12
+        component under test: JVM library 'main'
         binary under test: Jar 'main:java7Jar'
         tool chain: $currentJdk
         classes dir: build/classes/unitTest/mainJava7JarBinary

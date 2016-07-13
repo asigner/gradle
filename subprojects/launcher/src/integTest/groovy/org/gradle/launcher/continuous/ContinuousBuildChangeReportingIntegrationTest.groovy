@@ -17,8 +17,6 @@
 package org.gradle.launcher.continuous
 
 import groovy.transform.TupleConstructor
-import org.gradle.integtests.fixtures.executer.ExecutionResult
-import org.gradle.internal.os.OperatingSystem
 import org.gradle.test.fixtures.file.TestFile
 
 import static org.gradle.internal.filewatch.ChangeReporter.SHOW_INDIVIDUAL_CHANGES_LIMIT
@@ -38,7 +36,7 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         inputDir = file("inputDir").createDir()
     }
 
-    def "should report the absolute file path of the file added when 1 file is added to the input directory"() {
+    def "should report the absolute file path of the created file when a single file is created in the input directory"() {
         given:
         def inputFile = inputDir.file("input.txt")
         when:
@@ -46,12 +44,12 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         inputFile.text = 'New input file'
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, [new ChangeEntry('new file', inputFile)])
+        assertReportsChanges([new ChangeEntry('new file', inputFile)])
     }
 
-    def "should report the absolute file path of the file added when 3 files are added to the input directory"() {
+    def "should report the absolute file path of the created files when the number of files added to the input directory is at the limit"() {
         given:
         def inputFiles = (1..changesLimit).collect { inputDir.file("input${it}.txt") }
         when:
@@ -59,12 +57,12 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         inputFiles.each { it.text = 'New input file' }
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, inputFiles.collect { new ChangeEntry('new file', it) })
+        assertReportsChanges(inputFiles.collect { new ChangeEntry('new file', it) })
     }
 
-    def "should report the absolute file path of the first 3 changes and report the number of other changes when more that 3 files are added to the input directory of each task"() {
+    def "should report the absolute file path of the created files up to the limit and 'and some more changes' when the number of files added to the input directory is over the limit"() {
         given:
         def inputFiles = (1..9).collect { inputDir.file("input${it}.txt") }
         when:
@@ -72,32 +70,25 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         inputFiles.each { it.text = 'New input file' }
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, inputFiles.take(changesLimit).collect { new ChangeEntry('new file', it) }, 6)
+        assertReportsChanges(inputFiles.collect { new ChangeEntry('new file', it) }, true)
     }
 
     def "should report the changes when files are removed"(changesCount) {
         given:
         def inputFiles = (1..changesCount).collect { inputDir.file("input${it}.txt") }
         inputFiles.each { it.text = 'New input file' }
-        def acceptedMoreChanges
-        if (changesCount > changesLimit) {
-            int expectedMoreChangesCount = changesCount - changesLimit
-            if (OperatingSystem.current().isWindows()) {
-                expectedMoreChangesCount *= 2
-            }
-            acceptedMoreChanges = [expectedMoreChangesCount, expectedMoreChangesCount + 1]
-        }
+        boolean expectMoreChanges = (changesCount > changesLimit)
 
         when:
         succeeds("theTask")
         inputFiles.each { it.delete() }
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, inputFiles.take(changesLimit).collect { new ChangeEntry('deleted', it) }, acceptedMoreChanges)
+        assertReportsChanges(inputFiles.collect { new ChangeEntry('deleted', it) }, expectMoreChanges)
 
         where:
         changesCount << [1, changesLimit, 11]
@@ -107,38 +98,34 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         given:
         def inputFiles = (1..changesCount).collect { inputDir.file("input${it}.txt") }
         inputFiles.each { it.text = 'New input file' }
-        def acceptedMoreChanges
-        if (changesCount > changesLimit) {
-            int expectedMoreChangesCount = changesCount - changesLimit
-            acceptedMoreChanges = [expectedMoreChangesCount, expectedMoreChangesCount + 1]
-        }
+        boolean expectMoreChanges = (changesCount > changesLimit)
 
         when:
         succeeds("theTask")
         inputFiles.each { it.text = 'File modified' }
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, inputFiles.take(changesLimit).collect { new ChangeEntry('modified', it) }, acceptedMoreChanges)
+        assertReportsChanges(inputFiles.collect { new ChangeEntry('modified', it) }, expectMoreChanges)
 
         where:
         changesCount << [1, changesLimit, 11]
     }
 
-    def "should report the changes when directories are added"(changesCount) {
+    def "should report the changes when directories are created"(changesCount) {
         given:
         def inputDirectories = (1..changesCount).collect { inputDir.file("input${it}Directory") }
-        int expectedMoreChangesCount = changesCount - changesLimit
+        boolean expectMoreChanges = (changesCount > changesLimit)
 
         when:
         succeeds("theTask")
         inputDirectories.each { it.mkdir() }
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, inputDirectories.take(changesLimit).collect { new ChangeEntry('new directory', it) }, expectedMoreChangesCount)
+        assertReportsChanges(inputDirectories.collect { new ChangeEntry('new directory', it) }, expectMoreChanges)
 
         where:
         changesCount << [1, changesLimit, 11]
@@ -148,16 +135,16 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
     def "should report the changes when directories are deleted"(changesCount) {
         given:
         def inputDirectories = (1..changesCount).collect { inputDir.file("input${it}Directory").createDir() }
-        int expectedMoreChangesCount = (changesCount - changesLimit) * 2
+        boolean expectMoreChanges = (changesCount > changesLimit)
 
         when:
         succeeds("theTask")
         inputDirectories.each { it.delete() }
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, inputDirectories.take(changesLimit).collect { new ChangeEntry('deleted', it) }, expectedMoreChangesCount)
+        assertReportsChanges(inputDirectories.collect { new ChangeEntry('deleted', it) }, expectMoreChanges)
 
         where:
         changesCount << [1, changesLimit, 11]
@@ -170,7 +157,6 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         inputFiles.each { it.text = 'Input file' }
         def newfile1 = inputDir.file("input12.txt")
         def newfile2 = inputDir.file("input13.txt")
-        int expectedMoreChangesCount = 1
 
         when:
         succeeds("theTask")
@@ -180,9 +166,33 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         newfile2.text = 'New Input file'
 
         then:
-        def result = succeeds()
+        succeeds()
         sendEOT()
-        assertReportsChanges(result, [new ChangeEntry("new file", newfile1), new ChangeEntry("modified", inputFiles[2]), new ChangeEntry("deleted", inputFiles[7])], expectedMoreChangesCount)
+        assertReportsChanges([new ChangeEntry("new file", newfile1), new ChangeEntry("modified", inputFiles[2]), new ChangeEntry("deleted", inputFiles[7]), new ChangeEntry("new file", newfile2)], true)
+    }
+
+    def "should report changes that happen when the build is executing"() {
+        given:
+        buildFile << """
+            gradle.taskGraph.afterTask { Task task ->
+                if(task.path == ':theTask' && !file('changetrigged').exists()) {
+                   sleep(500) // attempt to workaround JDK-8145981
+                   file('inputDir/input.txt').text = 'New input file'
+                   file('changetrigged').text = 'done'
+                }
+            }
+        """
+
+        when:
+        succeeds("theTask")
+
+        then:
+        sendEOT()
+        results.size() == 2
+        results.each {
+            assert it.executedTasks == [':theTask']
+        }
+        assertReportsChanges([new ChangeEntry("new file", file("inputDir/input.txt"))])
     }
 
     @TupleConstructor
@@ -191,15 +201,11 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         File file
     }
 
-    private void assertReportsChanges(ExecutionResult result, List<ChangeEntry> entries) {
-        assertReportsChanges(result, entries, null)
+    private void assertReportsChanges(List<ChangeEntry> entries) {
+        assertReportsChanges(entries, false)
     }
 
-    private void assertReportsChanges(ExecutionResult result, List<ChangeEntry> entries, Integer moreChanges) {
-        assertReportsChanges(result, entries, moreChanges > 0 ? [moreChanges] : null)
-    }
-
-    private void assertReportsChanges(ExecutionResult result, List<ChangeEntry> entries, List<Integer> acceptedMoreChanges) {
+    private void assertReportsChanges(List<ChangeEntry> entries, boolean expectMoreChanges) {
         String changeReportOutput
         result.output.with {
             int pos = it.indexOf('Change detected, executing build...')
@@ -210,30 +216,24 @@ class ContinuousBuildChangeReportingIntegrationTest extends Java7RequiringContin
         assert changeReportOutput != null: 'No change report output.'
 
         List<String> actualLines = changeReportOutput.readLines()
-        int actualMoreChanges = 0
-        (actualLines.last() =~ /and (\d+) more changes/).find { line, matchedChangeCount ->
+        boolean actualMoreChanges = false
+        if (actualLines.last() == 'and some more changes') {
             actualLines.remove(actualLines.size() - 1)
-            actualMoreChanges = matchedChangeCount as int
+            actualMoreChanges = true
         }
 
         if (entries != null) {
-            List<String> expectedLines = entries.collect { "${it.type}: ${it.file.absolutePath}".toString() }
-            assert expectedLines == actualLines
+            Set<String> expectedLines = entries.collect { "${it.type}: ${it.file.absolutePath}".toString() }
+            actualLines.each {
+                assert expectedLines.contains(it): "Expected lines didn't contain '$it'"
+            }
+            int expectedLinesCount = Math.min(expectedLines.size(), changesLimit)
+            assert actualLines.size() == expectedLinesCount
         }
 
-        if (actualMoreChanges > 0 || acceptedMoreChanges) {
-            assert actualMoreChanges != 0: "Expecting 'more changes' line, but it wasn't found"
-            assert acceptedMoreChanges: "Not expecting a 'more changes' line"
-
-            if (acceptedMoreChanges.size() == 1) {
-                def expectedMoreChanges = acceptedMoreChanges.first()
-                assert expectedMoreChanges == actualMoreChanges
-            } else {
-                boolean moreChangesMatches = acceptedMoreChanges.any {
-                    it == actualMoreChanges
-                }
-                assert moreChangesMatches: "'more changes' doesn't match, actualMoreChanges ${actualMoreChanges} , acceptedMoreChanges ${acceptedMoreChanges}"
-            }
+        if (actualMoreChanges || expectMoreChanges) {
+            assert actualMoreChanges: "Expecting 'more changes' line, but it wasn't found"
+            assert expectMoreChanges: "Not expecting a 'more changes' line"
         }
     }
 }

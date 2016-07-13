@@ -18,8 +18,6 @@ package org.gradle.tooling.model.eclipse;
 import org.gradle.api.Incubating;
 import org.gradle.api.Nullable;
 import org.gradle.tooling.model.*;
-import org.gradle.tooling.model.java.JavaSourceAware;
-import org.gradle.tooling.model.java.JavaSourceSettings;
 
 /**
  * The complete model of an Eclipse project.
@@ -28,7 +26,7 @@ import org.gradle.tooling.model.java.JavaSourceSettings;
  *
  * @since 1.0-milestone-3
  */
-public interface EclipseProject extends HierarchicalEclipseProject, HasGradleProject, JavaSourceAware {
+public interface EclipseProject extends HierarchicalEclipseProject {
     /**
      * {@inheritDoc}
      */
@@ -40,11 +38,14 @@ public interface EclipseProject extends HierarchicalEclipseProject, HasGradlePro
     DomainObjectSet<? extends EclipseProject> getChildren();
 
     /**
-     * {@inheritDoc}
+     * Returns the Java source settings for this project.
+     *
+     * @return the settings for Java sources or {@code null} if not a Java element.
      * @throws UnsupportedMethodException For Gradle versions older than 2.10, where this method is not supported.
+     * @since 2.10
      */
     @Nullable @Incubating
-    JavaSourceSettings getJavaSourceSettings() throws UnsupportedMethodException;
+    EclipseJavaSourceSettings getJavaSourceSettings() throws UnsupportedMethodException;
 
     /**
      * The gradle project that is associated with this project.
@@ -63,7 +64,7 @@ public interface EclipseProject extends HierarchicalEclipseProject, HasGradlePro
      * @return The dependencies. Returns an empty set if the project has no external dependencies.
      * @since 1.0-milestone-3
      */
-    DomainObjectSet<? extends ExternalDependency> getClasspath();
+    DomainObjectSet<? extends EclipseExternalDependency> getClasspath();
 
     /**
      * Returns the Eclipse natures configured on the project.
@@ -98,4 +99,24 @@ public interface EclipseProject extends HierarchicalEclipseProject, HasGradlePro
      */
     @Incubating
     DomainObjectSet<? extends EclipseBuildCommand> getBuildCommands() throws UnsupportedMethodException;
+
+    /**
+     * Returns the Eclipse classpath containers defined on the project.
+     *
+     * @return The list of classpath containers.
+     * @since 3.0
+     * @throws UnsupportedMethodException For Gradle versions older than 3.0, where this method is not supported.
+     */
+    @Incubating
+    DomainObjectSet<? extends EclipseClasspathContainer> getClasspathContainers() throws UnsupportedMethodException;
+
+    /**
+     * Returns the output location of this project.
+     *
+     * @return The project's output location.
+     * @since 3.0
+     * @throws UnsupportedMethodException For Gradle versions older than 3.0, where this method is not supported.
+     */
+    @Incubating
+    EclipseOutputLocation getOutputLocation() throws UnsupportedMethodException;
 }

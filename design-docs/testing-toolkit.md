@@ -398,7 +398,7 @@ The `GradleRunner` abstract class will be extended to provide additional methods
 
 * Using `System.out` and `System.err` as default? This might produce to much log output.
 
-## Story: Test kit does not require any of the Gradle runtime
+## Story: Test kit does not require any of the Gradle runtime (DONE)
 
 This story improves usability of the test kit by not imposing any dependencies beyond the `gradle-test-kit` and `gradle-tooling-api` jars (including no transitive dependencies).
 
@@ -412,7 +412,7 @@ This story improves usability of the test kit by not imposing any dependencies b
 - User tests cannot access classes from `gradle-core` (or any other part of the Gradle runtime) in tests where `gradleTestKit()` was used
 - Configuration containing just `gradleTestKit()` contains no other files than `gradle-test-kit` and `gradle-tooling-api`
 
-## Story: GradleRunner functionality is verified to work with all "supported" Gradle versions
+## Story: GradleRunner functionality is verified to work with all "supported" Gradle versions (DONE)
 
 The TestKit allows for executing functional tests with a Gradle distribution specified by the user. `GradleRunner` passes the provided
 distribution to the Tooling API to execute Gradle. For the most part the internal implementation of the Tooling API build execution
@@ -448,211 +448,7 @@ a human-readable error message that explains why this feature cannot be used.
 * To determine the target Gradle version under test based on the provided distribution, the Tooling API model is queries which probably has a small overhead in terms of
 execution performance. Are we OK with this overhead or is there a better way to determine the target Gradle version?
 
-# Milestone 3
-
-This milestone focused on making TestKit more convenient to use for plugin developers by reducing boiler plate logic. Another aspect addresses packaging aspects of TestKit
-and the Gradle API to avoid classpath issues.
-
-## Story: GradleRunner user uses API to infer plugin-under-test implementation classpath from GradleRunner use runtime classpath
-
-Plugin developers using TestKit need to inject the classes-under-test by using the method `withPluginClasspath(Iterable<? extends File> classpath)`. TestKit proposes ways
-to determine the classpath in the user guide. This approach requires boiler plate code that needs to be copy/pasted from project to project. The goal of this story is
-to provide a simple way to reduce boiler plate code by providing an API that derives the classpath from the current JVM runtime environment
-(similar to functionality in [Nebula Test](https://github.com/nebula-plugins/nebula-test/blob/master/src/main/groovy/nebula/test/functional/internal/classpath/ClasspathAddingInitScriptBuilder.groovy#L40)).
-This implementation comes with the known limitation that derived classpath potentially contains unnecessary JARs from the current runtime environment e.g. IDE libraries
-if started from IDE.
-
-### Implementation
-
-* Add or expand sample to demonstrate this feature.
-* Add some brief user guide material.
-
-### User visible changes
-
-The TestKit API will provide a class for providing the runtime classpath:
-
-    package org.gradle.testkit.runner;
-
-    public final class GradlePluginClasspathLoader {
-        private GradlePluginClasspathLoader() {}
-
-        public static List<File> getRuntimeClasspath() {
-            ...
-        }
-    }
-
-The user calls the method introduced by the class when building the `GradleRunner`:
-
-    import org.gradle.testkit.runner.GradlePluginClasspathLoader
-
-    GradleRunner.create()
-        .withProjectDir(testProjectDir.root)
-        .withPluginClasspath(GradlePluginClasspathLoader.getRuntimeClasspath())
-        .build()
-
-### Test Coverage
-
-* The runtime classpath can be created and pass into the `GradleRunner` API.
-* The runtime classpath can be generated when executed from the command line as well as the IDE.
-* IDEA and Eclipse projects are configured to run these tests. Manually verify that this works (in IDEA say).
-* Manually verify that when using an IDE, a breakpoint can be added in production classes, the test run, and the breakpoint hit.
-* The generated classpath is a viable alternative to the `classpath.properties` method demonstrated in the user guide.
-
-## Story: Plugin developer uses DSL to expose plugin classpath manifest to test runtime in conventional manner
-
-The previous story provides a approximated classpath used to feed GradleRunner with the classes-under-test. One downside is that the classpath contains
-additional JARs from the current runtime environment which might not be desired. This story aims for turning the creation of the `classpath.properties`
-method demonstrated in the user guide into an automated process. Reading the generated `classpath.properties` file is out of scope for this story.
-
-### Implementation
-
-* A new plugin will be created that contains the creation logic for the `classpath.properties` file e.g. `plugin-dev-classpath-plugin`.
-* The plugin automatically creates a new task for generating the manifest file named `createClasspathManifest`. The task uses the value of
-`sourceSets.main.runtimeClasspath` by default to derive the classpath. The classpath will be written line-by-line. Incremental build functionality is established
-by defining inputs and outputs for the task.
-* The plugin exposes a DSL for mapping the main source set classpath to the test source set classpath and the task responsible for generating the classpath. The
-implementation of the DSL is done by introducing an extension.
-* The automatic mapping between main and test source set is out-of-scope for this story.
-* Add or expand sample to demonstrate this feature.
-* Add some brief user guide material.
-
-### User visible changes
-
-The extension is defined with the following properties:
-
-    class PluginDevClasspathExtension {
-        SourceSet pluginSourceSet
-        SourceSet testSourceSet
-        Task createdBy
-    }
-
-    project.extensions.create('pluginDevClasspath', PluginDevClasspathExtension)
-
-The usage of the plugin could look as follows:
-
-    apply plugin: 'plugin-dev-classpath-plugin'
-
-    pluginDevClasspath {
-        pluginSourceSet sourceSets.main
-        testSourceSet sourceSets.test
-        createdBy createClasspathManifest
-    }
-
-### Test Coverage
-
-* Applying the plugin adds generation task and DSL.
-* A user can manually execute the task for generating classpath. Default values for inputs/outputs are used. The generated classpath file contains the expected entries. The
-task is executed before the `Test` task is executed that corresponds to the property `testSourceSet`.
-* A user can use a custom test source set for classpath assignment.
-* A user can use a custom task for generating the classpath and map it through the DSL.
-
-## Story: GradleRunner user uses API to determine conventionally located plugin-under-test implementation classpath
-
-This story exposes a new API method for reading the generated classpath from `GradlePluginClasspathLoader`.
-
-### Implementation
-
-### User visible changes
-
-Enhance the the existing API of `GradlePluginClasspathLoader`:
-
-    package org.gradle.testkit.runner;
-
-    public final class GradlePluginClasspathLoader {
-        public static List<File> getGeneratedClasspath() {
-            ...
-        }
-    }
-
-The user calls the method introduced by the class when building the `GradleRunner`:
-
-    import org.gradle.testkit.runner.GradlePluginClasspathLoader
-
-    GradleRunner.create()
-        .withProjectDir(testProjectDir.root)
-        .withPluginClasspath(GradlePluginClasspathLoader.getGeneratedClasspath())
-        .build()
-
-### Test Coverage
-
-* The generated classpath file is read when accessing the exposed API method. Once read the classpath should be cached withing `GradlePluginClasspathLoader`.
-* IDEA and Eclipse projects are configured to run these tests. Manually verify that this works (in IDEA say).
-* Manually verify that when using an IDE, a breakpoint can be added in production classes, the test run, and the breakpoint hit.
-
-## Story: Plugin developer uses Gradle plugin to conventionally expose plugin classpath to tests
-
-Wit the previous stories, users will still need to assign values through the DSL which offers full flexibility. Most users are OK with conventions and would
-like to go with them. This story aims for introducing a new plugin that introduces conventions and reduces additional boiler plate code.
-
-### Implementation
-
-* A new plugin is introduced. That plugin automatically applies the `plugin-dev-classpath-plugin`.
-* The new plugin also configures the DSL with the following values:
-    * `pluginSourceSet` = `sourceSets.main`
-    * `testSourceSet` = `sourceSets.test`
-    * `createdBy` = `createClasspathManifest`
-* Add or expand sample to demonstrate this feature.
-* Add some brief user guide material.
-
-The user will still need to call the method `GradlePluginClasspathLoader.getGeneratedClasspath()` and inject it through the GradleRunner API.
-
-    import org.gradle.testkit.runner.GradlePluginClasspathLoader
-
-    GradleRunner.create()
-        .withProjectDir(testProjectDir.root)
-        .withPluginClasspath(GradlePluginClasspathLoader.getGeneratedClasspath())
-        .build()
-
-### Test Coverage
-
-* By applying this plugin sensible default values are set for plugin classpath generation.
-* Conventions provided by this plugin can be redefined.
-* IDEA and Eclipse projects are configured to run these tests. Manually verify that this works (in IDEA say).
-* Manually verify that when using an IDE, a breakpoint can be added in production classes, the test run, and the breakpoint hit.
-
-## Story: Isolate external dependencies used by Gradle runtime from user classpath
-
-This story continues the work that was done in milestone 2: "Test kit does not require any of the Gradle runtime". It solves the problem in a broader scope by providing fat JARs
-for TestKit, the Tooling API and Gradle API. External dependencies (required by Gradle) bundled within the fat JAR are relocated to avoid version conflicts with libraries used
-by plugins. The solution will also fix [GRADLE-1715](https://issues.gradle.org/browse/GRADLE-1715).
-
-### Implementation
-
-* Create a fat jar for Gradle API, the Tooling API and TestKit.
-* The fat JAR will relocated all external dependencies to `org.gradle.jarjar`. All Gradle runtime classes (`org.gradle.**` will keep the package).
-* The fat Gradle API JAR will created in a new directory of the Gradle distribution e.g. `jarjar`. If the size of the Gradle distribution increases significantly, this JAR might
-have to be published instead.
-* The fat Tooling API JAR will not become part of the Gradle distribution. It will only be published.
-* The fat TestKit JAR will be part of the Gradle distribution under `lib/plugins`.
-* At runtime `gradleApi()` will reference the fat Gradle API JAR.
-* At runtime `gradleTestKit()` uses the fat JAR of the Tooling API as dependency.
-* JARs of Gradle API, the Tooling API and TestKit will need to have the same version.
-
-### Test Coverage
-
-* Allow a user to declare the following set of dependencies by hiding the implementations of the dependencies we expose.
-
-<!-- -->
-
-    dependencies {
-        compile gradleApi()
-        compile gradleTestKit()
-        compile <fat TAPI jar for the same Gradle version>
-    }
-
-* The Gradle runtime always uses the relocated external dependencies bundled with their corresponding JARs.
-* A plugin can use an external library with a different version than the one bundled in `gradleApi()`. Only the external library defined by the plugin is referenced at build and
- runtime. No classpath issue occurs.
-* `gradleApi()` and `gradleTestKit` can be declared for the same configuration. Independent of classpath ordering no classpath issue occurs.
-
-### Open Issues
-
-* Increased size of Gradle distribution
-* Publishing of fat JARs might be required
-
-# Milestone 4
-
-## Story: Optimizations for cross-version compatibility tests
+## Story: Audit existing tests and improve the test coverage for TestKit (DONE)
 
 In a previous story, support for cross-version compatibility tests have been put in place. The goal of this story to audit the existing tests and improve the test coverage.
 
@@ -671,6 +467,99 @@ executions on the class level, this needs to be done on the level of a test meth
 * The number of tests is reduced.
 * Optimally test execution time is shorter.
 * Specific test methods can be tested against earlier versions of Gradle.
+
+# Milestone 3
+
+This milestone focuses on making TestKit more convenient to use for plugin developers by reducing boiler plate logic. Another aspect addresses the packaging of TestKit
+and the Gradle API to avoid classpath issues.
+
+## Story: Plugin development plugin automatically injects plugin classpath (DONE)
+
+Plugin developers using TestKit need to inject the classes-under-test by using the method `withPluginClasspath(Iterable<? extends File> classpath)`. TestKit proposes ways
+to determine the classpath in the user guide. This approach requires boiler plate code that needs to be copy/pasted from project to project. The goal of this story is
+to provide a simple way to remove boiler plate code by enhancing the [plugin development plugin](https://docs.gradle.org/current/userguide/javaGradle_plugin.html). The creation
+and usage of the `classpath.properties` method demonstrated in the user guide will be abstracted from the user and turned into into an automated process.
+
+### Implementation
+
+* The plugin automatically creates a new task for generating the manifest file named `pluginClasspathManifest`.
+    * Create implementation as custom task.
+    * The classpath generated by the task is stored in a plain text file. Each classpath entry is written line-by-line. The file separator used for the entries is "/" for all
+    operating systems.
+    * The task defines inputs and outputs for the task for supporting incremental build functionality.
+    * By default the task uses the `runtimeClasspath` of the `sourceSets.main` to derive the classpath. This input is reconfigurable.
+    * The output file for the generated classpath is `$buildDir/$task.name/plugin-under-test-metadata.properties`. The task automatically creates the output directory if it doesn't exist yet.
+    The file name is not configurable though the output directory is.
+    * The contents of the properties file contains a single property `implementation-classpath`. The assigned value is the runtime classpath.
+* By default the the dependency on `gradleTestKit()` is automatically assigned to compile configuration of the `sourceSets.test`. A user can declare one or many source sets to be used
+for functional testing with TestKit.
+* An extension is exposed that allows for configuring functional testing.
+    * The source set for the project containing the code under test. Default value: `sourceSets.main`.
+    * The test source sets that require the code under test to be visible to test builds. Default value: `sourceSets.test`.
+* Automatically assign the task `pluginClasspathManifest` to the test source sets runtime configuration via `dependencies.<runtime-configuration> files(pluginClasspathManifest)`.
+* Introduce a new method `GradleRunner.withPluginClasspath()`. If called the `plugin-under-test-metadata.properties` is read, the classpath constructed and
+provided to the call `AbstractLongRunningOperation.withInjectedClassPath(ClassPath classpath)`.
+    * The method call is only made if the constructed classpath is not empty and the target Gradle version supports the API (>= 2.8).
+    * If the user provided a custom classpath then classpath provided by `plugin-under-test-metadata.properties` is overridden.
+* The plugin will not provide direct support for implementing plugins in languages other than Java. If a user prefers to write a plugin in a different JVM language, the build script
+ needs to apply the corresponding JVM language plugin e.g. `apply plugin: 'groovy'` for a plugin written in Groovy. There's nothing to be done for the plugin-dev-plugin.
+* Add or expand sample to demonstrate this feature.
+* Add some brief user guide material in TestKit guide. The documentation for the plugin-dev-plugin should link to it.
+
+### API
+
+The extension is defined with the following properties:
+
+    public class GradlePluginDevelopmentExtension {
+        private SourceSet pluginSourceSet;
+        private Set<SourceSet> testSourceSets;
+
+        // getters/setters
+        ...
+
+        public void testSourceSets(SourceSet... testSourceSets) {
+            ...
+        }
+    }
+
+    project.getExtensions().create("gradlePlugin", GradlePluginDevelopmentExtension.class);
+
+### User visible changes
+
+The usage of the extension looks as follows:
+
+    gradlePlugin {
+        pluginSourceSet sourceSets.main
+        testSourceSets sourceSets.test, sourceSets.functionalTest
+    }
+
+### Test Coverage
+
+* By applying this plugin sensible default values are set for plugin classpath generation and its extension.
+* A user can manually execute the task for generating classpath by executing the `pluginClasspathManifest` task.
+* The `pluginClasspathManifest` task is executed before the `Test` task is executed that corresponds to the source set declaring the dependency on the TestKit API.
+* Default values for inputs/outputs of the task `pluginClasspathManifest` are used.
+* The generated classpath file contains the expected entries.
+* A user can only configure the input of the `pluginClasspathManifest` task but not its output.
+* The generated classpath file is read when invoking `GradleRunner.create()`.
+    * An exception is thrown, if the file does not exist.
+    * An exception is thrown, if the file cannot be parsed or the classpath cannot be constructed from its contents.
+* The end user is provided with automatic plugin classpath injection with just the default conventions.
+    * Automatic injection of the classpath only works if the target Gradle version is >= 2.8.
+    * The plugin classpath can be provided for multiple test source sets.
+    * If the user calls the method `GradleRunner.withPluginClasspath(Iterable<? extends File> classpath)` for the same `GradleRunner` instance, the classpath set by the last method
+invocation wins.
+* Manually verify that executing tests in the IDE (say IDEA) works reasonably well. Document any unforeseen caveats.
+
+## Story: Isolate external dependencies used by Gradle runtime from user classpath (DONE)
+
+### Estimate
+
+6-20 days
+
+See [features/plugin-development-gradle-dependency-isolation/README.md](plugin-development-gradle-dependency-isolation).
+
+# Milestone 4
 
 ## Story: Integration with Jacoco plugin
 
@@ -808,3 +697,6 @@ none
 - Potentially when running under the plugin dev plugin, defer clean up of test daemons to some finalizer task
 - Have test daemons reuse the artifact cache and other caches in ~/.gradle, and just ignore the configuration files there.
 - More convenient construction of test project directories (i.e. something like Gradle core's test directory provider)
+- Integration with IDE plugins e.g. for automatic setup of debug flag
+- Automatic classpath injection for projects that do _not_ contain a plugin definition e.g. just a collection of custom task types. The plugin DSL would not be used in those
+cases.

@@ -17,11 +17,15 @@
 package org.gradle.performance
 
 import org.gradle.integtests.fixtures.executer.UnderDevelopmentGradleDistribution
+import org.gradle.integtests.fixtures.versions.ReleasedVersionDistributions
 import org.gradle.performance.categories.GradleCorePerformanceTest
-import org.gradle.performance.fixture.*
+import org.gradle.performance.fixture.BuildExperimentRunner
+import org.gradle.performance.fixture.CrossVersionPerformanceTestRunner
+import org.gradle.performance.fixture.GradleSessionProvider
 import org.gradle.performance.measure.DataAmount
 import org.gradle.performance.measure.Duration
 import org.gradle.performance.results.CrossVersionResultsStore
+import org.gradle.performance.results.ResultsStoreHelper
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
 import org.junit.Rule
 import org.junit.experimental.categories.Category
@@ -29,18 +33,16 @@ import spock.lang.Specification
 
 @Category(GradleCorePerformanceTest)
 class AbstractCrossVersionPerformanceTest extends Specification {
+
     @Rule
     TestNameTestDirectoryProvider tmpDir = new TestNameTestDirectoryProvider()
-    static def resultStore = new CrossVersionResultsStore()
-    static def textReporter = new TextFileDataReporter(new File("build/performance-tests/results.txt"))
+    static def resultStore = ResultsStoreHelper.maybeUseResultStore { new CrossVersionResultsStore() }
 
-    final def runner = new CrossVersionPerformanceTestRunner(new BuildExperimentRunner(new GradleSessionProvider(tmpDir)), new CompositeDataReporter([textReporter, resultStore]))
+    final def runner = new CrossVersionPerformanceTestRunner(
+        new BuildExperimentRunner(new GradleSessionProvider(tmpDir)), resultStore, new ReleasedVersionDistributions(), ResultsStoreHelper.ADHOC_RUN)
 
     def setup() {
         runner.current = new UnderDevelopmentGradleDistribution()
-        runner.runs = 5
-        runner.warmUpRuns = 1
-        runner.targetVersions = ['1.0', '1.4', '1.8', 'last']
         runner.maxExecutionTimeRegression = Duration.millis(500)
         runner.maxMemoryRegression = DataAmount.mbytes(25)
     }

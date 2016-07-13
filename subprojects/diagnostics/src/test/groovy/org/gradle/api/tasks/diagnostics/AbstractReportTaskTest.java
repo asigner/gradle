@@ -16,10 +16,10 @@
 package org.gradle.api.tasks.diagnostics;
 
 import org.gradle.api.Project;
-import org.gradle.api.internal.project.DefaultProject;
+import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.tasks.diagnostics.internal.ReportRenderer;
 import org.gradle.initialization.BuildClientMetaData;
-import org.gradle.logging.StyledTextOutput;
+import org.gradle.internal.logging.text.StyledTextOutput;
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider;
 import org.gradle.util.TestUtil;
 import org.gradle.util.WrapUtil;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @RunWith(JMock.class)
 public class AbstractReportTaskTest {
     private final JUnit4Mockery context = new JUnit4Mockery();
-    private final DefaultProject project = createRootProject();
+    private final ProjectInternal project = createRootProject();
     private Runnable generator;
     private TestReportTask task;
     private ReportRenderer renderer;

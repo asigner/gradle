@@ -17,11 +17,9 @@
 package org.gradle.launcher
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.AvailableJavaHomes
 import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.launcher.debug.JDWPUtil
 import org.gradle.test.fixtures.ConcurrentTestUtil
-import org.gradle.util.GradleVersion
 import org.junit.Rule
 import spock.lang.IgnoreIf
 import spock.lang.Unroll
@@ -29,23 +27,11 @@ import spock.lang.Unroll
 class CommandLineIntegrationSpec extends AbstractIntegrationSpec {
     @Rule JDWPUtil jdwpClient = new JDWPUtil(5005)
 
-    @IgnoreIf({ AvailableJavaHomes.java5 == null })
-    def "provides reasonable failure message when attempting to run under java 5"() {
-        def jdk = AvailableJavaHomes.java5
-
-        given:
-        executer.withJavaHome(jdk.javaHome)
-
-        expect:
-        fails("help")
-        failure.assertHasDescription("Gradle ${GradleVersion.current().version} requires Java 6 or later to run. You are currently using Java 5.")
-    }
-
     @IgnoreIf({ GradleContextualExecuter.parallel })
     @Unroll
     def "reasonable failure message when --max-workers=#value"() {
         given:
-        requireGradleHome() // otherwise exception gets thrown in testing infrastructure
+        requireGradleDistribution() // otherwise exception gets thrown in testing infrastructure
 
         when:
         args("--max-workers=$value")
@@ -63,7 +49,7 @@ class CommandLineIntegrationSpec extends AbstractIntegrationSpec {
     @Unroll
     def "reasonable failure message when org.gradle.workers.max=#value"() {
         given:
-        requireGradleHome() // otherwise exception gets thrown in testing infrastructure
+        requireGradleDistribution() // otherwise exception gets thrown in testing infrastructure
 
         when:
         args("-Dorg.gradle.workers.max=$value")

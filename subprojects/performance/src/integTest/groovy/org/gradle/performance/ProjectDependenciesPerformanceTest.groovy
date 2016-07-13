@@ -17,11 +17,12 @@
 package org.gradle.performance
 
 import org.gradle.performance.categories.BasicPerformanceTest
+import org.gradle.performance.categories.Experiment
 import org.junit.experimental.categories.Category
 
 import static org.gradle.performance.measure.Duration.millis
 
-@Category(BasicPerformanceTest)
+@Category([BasicPerformanceTest, Experiment])
 class ProjectDependenciesPerformanceTest extends AbstractCrossVersionPerformanceTest {
 
     def "resolving dependencies"() {
@@ -30,7 +31,7 @@ class ProjectDependenciesPerformanceTest extends AbstractCrossVersionPerformance
         runner.testProject = "lotProjectDependencies"
         runner.tasksToRun = ['resolveDependencies']
         runner.useDaemon = true
-        runner.targetVersions = ['2.8', '2.11', 'last']
+        runner.targetVersions = ['2.11', 'last']
         runner.maxExecutionTimeRegression = millis(1000)
 
         when:

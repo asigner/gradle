@@ -35,7 +35,7 @@ class IdeaIntegrationTest extends AbstractIdeIntegrationTest {
     public final TestResources testResources = new TestResources(testDirectoryProvider)
 
     @Test
-    void mergesImlCorrectly() {
+    void mergesMetadataFilesCorrectly() {
         def buildFile = file("master/build.gradle")
         buildFile << """
 apply plugin: 'java'
@@ -44,13 +44,16 @@ apply plugin: 'idea'
 
         //given
         executer.usingBuildScript(buildFile).withTasks('idea').run()
-        def fileContent = getFile([:], 'master/master.iml').text
+        def projectContent = getFile([:], 'master/master.ipr').text
+        def moduleContent = getFile([:], 'master/master.iml').text
 
         executer.usingBuildScript(buildFile).withTasks('idea').run()
-        def contentAfterMerge = getFile([:], 'master/master.iml').text
+        def projectContentAfterMerge = getFile([:], 'master/master.ipr').text
+        def moduleContentAfterMerge = getFile([:], 'master/master.iml').text
 
         //then
-        assert fileContent == contentAfterMerge
+        assert projectContent == projectContentAfterMerge
+        assert moduleContent == moduleContentAfterMerge
     }
 
     @Test
@@ -220,7 +223,7 @@ idea.module.iml {
 }
 
 tasks.idea << {
-    assert hookActivated == 1 : "withXml() hook shoold be fired"
+    assert hookActivated == 1 : "withXml() hook should be fired"
 }
 '''
     }
@@ -399,139 +402,14 @@ idea.project {
         hasProjectLibrary("root.ipr", "someLib", ["someClasses.jar"], ["someJavadoc.jar"], ["someSources.jar"], [])
     }
 
+    // We don't currently support generating an IDEA project from a software model component
     @Test
-    void noExplicitBytecodeLevelForSameJavaVersions() {
-        def settingsFile = file("settings.gradle")
-        settingsFile << """
-rootProject.name = "root"
-include 'subprojectA'
-include 'subprojectB'
-include 'subprojectC'
-"""
-
-        def buildFile = file("build.gradle")
-        buildFile << """
-allprojects {
-    apply plugin: 'java'
-    apply plugin: 'idea'
-    targetCompatibility = '1.6'
-}
-
-idea {
-    project {
-        jdkName = "1.6"
+    void "does not explode if only ScalaLanguagePlugin is applied"() {
+        runTask("idea", """
+apply plugin: 'idea'
+apply plugin: 'org.gradle.scala-lang'
+""")
     }
-}
-
-"""
-
-        //when:
-        executer.usingBuildScript(buildFile).usingSettingsFile(settingsFile).withTasks("idea").run()
-
-        //then:
-        def ipr = parseFile([:], "root.ipr")
-
-        def compilerConfig =  ipr.component.find { it.@name == "CompilerConfiguration" }
-        assert compilerConfig.size() == 1
-        assert compilerConfig.bytecodeTargetLevel.size() == 0
-    }
-
-    @Test
-    void explicitProjectTargetLevelWhenModuleVersionsDifferFromProjectJdk() {
-        def settingsFile = file("settings.gradle")
-        settingsFile << """
-rootProject.name = "root"
-include 'subprojectA'
-include 'subprojectB'
-include 'subprojectC'
-"""
-
-        def buildFile = file("build.gradle")
-        buildFile << """
-allprojects {
-    apply plugin: 'java'
-    apply plugin: 'idea'
-    targetCompatibility = '1.7'
-}
-
-idea {
-    project {
-        jdkName = "1.8"
-    }
-}
-
-"""
-
-        //when:
-        executer.usingBuildScript(buildFile).usingSettingsFile(settingsFile).withTasks("idea").run()
-
-        //then:
-        def ipr = parseFile([:], "root.ipr")
-
-        def compilerConfig =  ipr.component.find { it.@name == "CompilerConfiguration" }
-        assert compilerConfig.size() == 1
-        assert compilerConfig.bytecodeTargetLevel.size() == 1
-        assert compilerConfig.bytecodeTargetLevel.@target == "1.7"
-    }
-
-    @Test
-    void canHaveModuleSpecificBytecodeLevel() {
-        def settingsFile = file("settings.gradle")
-        settingsFile << """
-rootProject.name = "root"
-include 'subprojectA'
-include 'subprojectB'
-include 'subprojectC'
-include 'subprojectD'
-"""
-
-        def buildFile = file("build.gradle")
-        buildFile << """
-configure(project(':subprojectA')) {
-    apply plugin: 'java'
-    apply plugin: 'idea'
-    targetCompatibility = '1.6'
-}
-
-configure(project(':subprojectB')) {
-    apply plugin: 'java'
-    apply plugin: 'idea'
-    targetCompatibility = '1.7'
-}
-
-configure(project(':subprojectC')) {
-    apply plugin: 'java'
-    apply plugin: 'idea'
-    targetCompatibility = '1.8'
-}
-
-configure(project(':subprojectD')) {
-    apply plugin: 'idea'
-}
-
-apply plugin:'idea'
-idea {
-    project {
-        jdkName = "1.8"
-    }
-}
-
-"""
-
-        //when:
-        executer.usingBuildScript(buildFile).usingSettingsFile(settingsFile).withTasks("idea").run()
-
-        //then:
-        def ipr = parseFile([:], "root.ipr")
-
-        def compilerConfig =  ipr.component.find { it.@name == "CompilerConfiguration" }
-        assert compilerConfig.size() == 1
-        assert compilerConfig.bytecodeTargetLevel.size() == 1
-        assert compilerConfig.bytecodeTargetLevel.module.size() == 2
-        assert compilerConfig.bytecodeTargetLevel.module.find { it.@name == "subprojectA" }.@target == "1.6"
-        assert compilerConfig.bytecodeTargetLevel.module.find { it.@name == "subprojectB" }.@target == "1.7"
-    }
-
 
     private void assertHasExpectedContents(String path) {
         TestFile actualFile = testDirectory.file(path).assertIsFile()

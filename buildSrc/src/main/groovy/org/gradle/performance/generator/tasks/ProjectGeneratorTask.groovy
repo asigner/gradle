@@ -22,8 +22,9 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
-import java.util.concurrent.Callable
 import org.gradle.performance.generator.*
+
+import java.util.concurrent.Callable
 
 abstract class ProjectGeneratorTask extends DefaultTask {
     @OutputDirectory
@@ -32,7 +33,6 @@ abstract class ProjectGeneratorTask extends DefaultTask {
     Integer testSourceFiles
     int linesOfCodePerSourceFile = 5
     int filesPerPackage = 100
-    boolean useSubProjectNumberInSourceFileNames = false
     List<String> additionalProjectFiles = []
     final List<TestProject> projects = []
     List<String> rootProjectTemplates = ['root-project']
@@ -43,7 +43,6 @@ abstract class ProjectGeneratorTask extends DefaultTask {
     final DependencyGraph dependencyGraph = new DependencyGraph()
     int numberOfExternalDependencies = 0
     MavenJarCreator mavenJarCreator = new MavenJarCreator()
-    Random random = new Random(1L)
 
     Callable<String> buildReceiptPluginVersionProvider
 
@@ -79,6 +78,16 @@ abstract class ProjectGeneratorTask extends DefaultTask {
 
     @TaskAction
     void generate() {
+        println "Generating test project ${destDir.name}"
+        println "  projects: ${projectCount}"
+        println "  source files: ${sourceFiles}"
+        println "  LOC per source file: ${linesOfCodePerSourceFile}"
+        println "  test source files: ${testSourceFiles}"
+        println "  files per package: ${filesPerPackage}"
+        println "  root project templates: ${rootProjectTemplates}"
+        println "  project templates: ${subProjectTemplates}"
+        println "  number of external dependencies: ${numberOfExternalDependencies}"
+
         ant.delete(dir: destDir)
         destDir.mkdirs()
 
@@ -96,7 +105,6 @@ abstract class ProjectGeneratorTask extends DefaultTask {
     void pickExternalDependencies(repo, subproject) {
         if (numberOfExternalDependencies > 0) {
             def dependencies = [] + repo.modules
-            Collections.shuffle(dependencies, random)
             subproject.setDependencies(dependencies.take(numberOfExternalDependencies))
         } else {
             subproject.setDependencies(repo.getDependenciesOfTransitiveLevel(1))
@@ -204,6 +212,9 @@ abstract class ProjectGeneratorTask extends DefaultTask {
 
         destFile.parentFile.mkdirs()
         destFile.withWriter { Writer writer ->
+            if (templateName.endsWith('.gradle')) {
+                writer << "// Generated ${UUID.randomUUID()}\n"
+            }
             getTemplate(templateFiles.last()).make(templateArgs).writeTo(writer)
         }
     }

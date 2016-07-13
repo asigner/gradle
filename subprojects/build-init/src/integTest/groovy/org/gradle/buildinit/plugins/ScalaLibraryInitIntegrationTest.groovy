@@ -28,10 +28,6 @@ class ScalaLibraryInitIntegrationTest extends AbstractIntegrationSpec {
 
     final wrapper = new WrapperTestFixture(testDirectory)
 
-    def setup() {
-        executer.requireIsolatedDaemons()
-    }
-
     def "creates sample source if no source present"() {
         when:
         succeeds('init', '--type', 'scala-library')
@@ -44,7 +40,7 @@ class ScalaLibraryInitIntegrationTest extends AbstractIntegrationSpec {
         wrapper.generated()
 
         when:
-        succeeds("build")
+        run("build")
 
         then:
         TestExecutionResult testResult = new DefaultTestExecutionResult(testDirectory)

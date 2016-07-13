@@ -36,6 +36,7 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 import static org.junit.Assert.*;
+import static org.junit.Assume.assumeTrue;
 
 public class TestFile extends File {
     private boolean useNativeTools;
@@ -140,6 +141,9 @@ public class TestFile extends File {
 
     public TestFile[] listFiles() {
         File[] children = super.listFiles();
+        if (children == null) {
+            return null;
+        }
         TestFile[] files = new TestFile[children.length];
         for (int i = 0; i < children.length; i++) {
             File child = children[i];
@@ -273,6 +277,15 @@ public class TestFile extends File {
     }
 
     /**
+     * Changes the last modified time for this file so that it is different to and smaller than its current last modified time, within file system resolution.
+     */
+    public TestFile makeOlder() {
+        // Just move back 2 seconds
+        setLastModified(lastModified() - 2000L);
+        return this;
+    }
+
+    /**
      * Creates a directory structure specified by the given closure.
      * <pre>
      * dir.create {
@@ -318,7 +331,11 @@ public class TestFile extends File {
     }
 
     public TestFile assertIsDir() {
-        assertTrue(String.format("%s is not a directory", this), isDirectory());
+        return assertIsDir("");
+    }
+
+    public TestFile assertIsDir(String hint) {
+        assertTrue(String.format("%s is not a directory. %s", this, hint), isDirectory());
         return this;
     }
 
@@ -557,6 +574,16 @@ public class TestFile extends File {
         return this;
     }
 
+    public TestFile bzip2To(TestFile compressedFile) {
+        new TestFileHelper(this).bzip2To(compressedFile);
+        return this;
+    }
+
+    public TestFile gzipTo(TestFile compressedFile) {
+        new TestFileHelper(this).gzipTo(compressedFile);
+        return this;
+    }
+
     public Snapshot snapshot() {
         assertIsFile();
         return new Snapshot(lastModified(), getHash("MD5"));
@@ -596,6 +623,10 @@ public class TestFile extends File {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void assumeExists() {
+        assumeTrue(this.exists());
     }
 
     public ExecOutput exec(Object... args) {

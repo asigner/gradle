@@ -19,6 +19,7 @@ package org.gradle.jvm.test
 import groovy.transform.NotYetImplemented
 import org.gradle.integtests.fixtures.DefaultTestExecutionResult
 import org.hamcrest.Matchers
+import spock.lang.Ignore
 import spock.lang.Unroll
 
 class JUnitStandaloneTestExecutionIntegrationTest extends AbstractJUnitTestExecutionIntegrationSpec {
@@ -144,7 +145,7 @@ class JUnitStandaloneTestExecutionIntegrationTest extends AbstractJUnitTestExecu
             testCount++
             tests << 'testExternalDependency'
         };
-        def result = new DefaultTestExecutionResult(testDirectory)
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest')
         result.assertTestClassesExecuted('MyTest')
         def check = result.testClass('MyTest')
             .assertTestCount(testCount, 0, 0)
@@ -191,7 +192,7 @@ class JUnitStandaloneTestExecutionIntegrationTest extends AbstractJUnitTestExecu
             testCount++
             tests.testExternalDependency = 'org.junit.ComparisonFailure: expected:<[Hello World]> but was:<[oh noes!]>'
         };
-        def result = new DefaultTestExecutionResult(testDirectory)
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest')
         result.assertTestClassesExecuted('MyTest')
         def check = result.testClass('MyTest')
             .assertTestCount(testCount, testCount, 0)
@@ -270,7 +271,7 @@ class JUnitStandaloneTestExecutionIntegrationTest extends AbstractJUnitTestExecu
         result.assertTasksExecuted ':compileMyTestBinaryMyTestJava', ':myTestBinaryTest' // only
 
         and:
-        def result = new DefaultTestExecutionResult(testDirectory)
+        def result = new DefaultTestExecutionResult(testDirectory, 'build', 'myTest')
         result.assertTestClassesExecuted('MyTest')
         result.testClass('MyTest')
             .assertTestCount(1, 1, 0)
@@ -631,6 +632,29 @@ class JUnitStandaloneTestExecutionIntegrationTest extends AbstractJUnitTestExecu
         failure.assertHasCause 'Compilation failed; see the compiler error output for details'
         errorOutput.contains 'variable Utils'
 
+    }
+
+    @Ignore
+    def "can customise jUnitVersion per binary"() {
+        given:
+        applyJUnitPlugin()
+
+        and:
+        buildFile << """
+            model {
+               testSuites {
+                    myTest(JUnitTestSuiteSpec) {
+                        jUnitVersion '1.618' // great number but bogus JUnit version
+                        binaries.all {
+                            jUnitVersion '4.12' // correct version
+                       }
+                    }
+                }
+            }
+        """
+
+        expect:
+        succeeds ':myTestBinaryTest'
     }
 
     private testSuiteWithDependencyOnLocalLibraryWithExternalTransitiveDependency(String dependencyOn='utils') {

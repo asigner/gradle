@@ -15,8 +15,14 @@
  */
 package org.gradle.internal.nativeintegration.services;
 
-import net.rubygrapefruit.platform.*;
+import net.rubygrapefruit.platform.NativeException;
+import net.rubygrapefruit.platform.NativeIntegrationUnavailableException;
+import net.rubygrapefruit.platform.PosixFiles;
 import net.rubygrapefruit.platform.Process;
+import net.rubygrapefruit.platform.ProcessLauncher;
+import net.rubygrapefruit.platform.SystemInfo;
+import net.rubygrapefruit.platform.Terminals;
+import net.rubygrapefruit.platform.WindowsRegistry;
 import net.rubygrapefruit.platform.internal.DefaultProcessLauncher;
 import org.gradle.internal.SystemProperties;
 import org.gradle.internal.jvm.Jvm;
@@ -49,6 +55,7 @@ public class NativeServices extends DefaultServiceRegistry implements ServiceReg
     private static boolean useNativePlatform = "true".equalsIgnoreCase(System.getProperty("org.gradle.native", "true"));
     private static final NativeServices INSTANCE = new NativeServices();
     private static boolean initialized;
+    private static File nativeBaseDir;
 
     public static final String NATIVE_DIR_OVERRIDE = "org.gradle.native.dir";
 
@@ -62,23 +69,17 @@ public class NativeServices extends DefaultServiceRegistry implements ServiceReg
 
     public static synchronized void initialize(File userHomeDir, boolean initializeJNA) {
         if (!initialized) {
-            String overrideProperty = System.getProperty(NATIVE_DIR_OVERRIDE);
-            File nativeDir;
-            if (overrideProperty == null) {
-                nativeDir = new File(userHomeDir, "native");
-            } else {
-                nativeDir = new File(overrideProperty);
-            }
+            nativeBaseDir = getNativeServicesDir(userHomeDir);
             if (useNativePlatform) {
                 try {
-                    net.rubygrapefruit.platform.Native.init(nativeDir);
+                    net.rubygrapefruit.platform.Native.init(nativeBaseDir);
                 } catch (NativeIntegrationUnavailableException ex) {
                     LOGGER.debug("Native-platform is not available.");
                     useNativePlatform = false;
                 } catch (NativeException ex) {
                     if (ex.getCause() instanceof UnsatisfiedLinkError && ex.getCause().getMessage().toLowerCase().contains("already loaded in another classloader")) {
-                LOGGER.debug("Unable to initialize native-platform. Failure: {}", format(ex));
-                useNativePlatform = false;
+                        LOGGER.debug("Unable to initialize native-platform. Failure: {}", format(ex));
+                        useNativePlatform = false;
                     } else {
                         throw ex;
                     }
@@ -86,10 +87,25 @@ public class NativeServices extends DefaultServiceRegistry implements ServiceReg
             }
             if (OperatingSystem.current().isWindows() && initializeJNA) {
                 // JNA is still being used by jansi
-                new JnaBootPathConfigurer().configure(nativeDir);
+                new JnaBootPathConfigurer().configure(nativeBaseDir);
             }
             initialized = true;
+
+            LOGGER.info("Initialized native services in: " + nativeBaseDir);
         }
+    }
+
+    public static File getNativeServicesDir(File userHomeDir) {
+        String overrideProperty = getNativeDirOverride();
+        if (overrideProperty == null) {
+            return new File(userHomeDir, "native");
+        } else {
+            return new File(overrideProperty);
+        }
+    }
+
+    private static String getNativeDirOverride() {
+        return System.getProperty(NATIVE_DIR_OVERRIDE, System.getenv(NATIVE_DIR_OVERRIDE));
     }
 
     public static synchronized NativeServices getInstance() {
@@ -216,6 +232,7 @@ public class NativeServices extends DefaultServiceRegistry implements ServiceReg
             this.type = type;
         }
 
+        @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             throw new org.gradle.internal.nativeintegration.NativeIntegrationUnavailableException(String.format("%s is not supported on this operating system.", type));
         }

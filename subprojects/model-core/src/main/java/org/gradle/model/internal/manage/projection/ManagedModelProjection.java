@@ -21,7 +21,7 @@ import groovy.lang.Closure;
 import org.gradle.api.internal.ClosureBackedAction;
 import org.gradle.internal.Cast;
 import org.gradle.internal.typeconversion.TypeConverter;
-import org.gradle.model.ModelViewClosedException;
+import org.gradle.model.internal.core.DefaultModelViewState;
 import org.gradle.model.internal.core.ModelPath;
 import org.gradle.model.internal.core.ModelView;
 import org.gradle.model.internal.core.MutableModelNode;
@@ -31,7 +31,12 @@ import org.gradle.model.internal.manage.binding.StructBindings;
 import org.gradle.model.internal.manage.instance.ManagedInstance;
 import org.gradle.model.internal.manage.instance.ManagedProxyFactory;
 import org.gradle.model.internal.manage.instance.ModelElementState;
-import org.gradle.model.internal.manage.schema.*;
+import org.gradle.model.internal.manage.schema.ManagedImplSchema;
+import org.gradle.model.internal.manage.schema.ModelProperty;
+import org.gradle.model.internal.manage.schema.ModelSchema;
+import org.gradle.model.internal.manage.schema.ScalarCollectionSchema;
+import org.gradle.model.internal.manage.schema.StructSchema;
+import org.gradle.model.internal.manage.schema.extract.ScalarCollectionModelView;
 import org.gradle.model.internal.type.ModelType;
 
 import java.util.Collection;
@@ -62,9 +67,8 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
 
     @Override
     protected ModelView<M> toView(final MutableModelNode modelNode, final ModelRuleDescriptor ruleDescriptor, final boolean writable) {
+        final DefaultModelViewState state = new DefaultModelViewState(modelNode.getPath(), getType(), ruleDescriptor, writable, true);
         return new ModelView<M>() {
-
-            private boolean closed;
             private final Map<String, Object> propertyViews = new HashMap<String, Object>();
 
             @Override
@@ -81,7 +85,7 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
             }
 
             public void close() {
-                closed = true;
+                state.close();
             }
 
             class State implements ModelElementState {
@@ -92,7 +96,7 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
 
                 @Override
                 public String getDisplayName() {
-                    return String.format("%s '%s'", getType(), modelNode.getPath().toString());
+                    return getType().getDisplayName() + " '" + modelNode.getPath() + "'";
                 }
 
                 @Override
@@ -113,7 +117,10 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
                     return modelNode.hashCode();
                 }
 
+                @Override
                 public Object get(String name) {
+                    state.assertCanReadChildren();
+
                     if (propertyViews.containsKey(name)) {
                         return propertyViews.get(name);
                     }
@@ -133,16 +140,9 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
                     propertyNode.ensureUsable();
 
                     ModelView<? extends T> modelView;
-                    ModelSchema<T> propertySchema = property.getSchema();
-                    if (property.isWritable() && propertySchema instanceof ScalarCollectionSchema) {
-                        Collection<?> instance = ScalarCollectionSchema.get(propertyNode);
-                        if (instance == null) {
-                            return null;
-                        }
-                    }
                     if (writable) {
                         modelView = propertyNode.asMutable(propertyType, ruleDescriptor);
-                        if (closed) {
+                        if (state.isClosed()) {
                             modelView.close();
                         }
                     } else {
@@ -153,13 +153,13 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
 
                 @Override
                 public void apply(String name, Closure<?> action) {
+                    state.assertCanMutate();
                     ClosureBackedAction.execute(get(name), action);
                 }
 
+                @Override
                 public void set(String name, Object value) {
-                    if (!writable || closed) {
-                        throw new ModelViewClosedException(getType(), ruleDescriptor);
-                    }
+                    state.assertCanMutate();
 
                     ModelProperty<?> property = schema.getProperty(name);
 
@@ -175,23 +175,15 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
                     propertyNode.ensureUsable();
 
                     if (propertySchema instanceof ManagedImplSchema) {
-                        if (value == null) {
-                            if (propertySchema instanceof ScalarCollectionSchema) {
-                                ScalarCollectionSchema.clear(propertyNode);
-                            } else {
-                                propertyNode.setTarget(null);
-                            }
-                        } else if (ManagedInstance.class.isInstance(value)) {
+                        if (propertySchema instanceof ScalarCollectionSchema) {
+                            ModelView<? extends Collection<?>> modelView = propertyNode.asMutable(COLLECTION_MODEL_TYPE, ruleDescriptor);
+                            return ((ScalarCollectionModelView<?, ? extends Collection<?>>) modelView).setValue(value);
+                        } else if (value == null) {
+                            propertyNode.setTarget(null);
+                        } else if (value instanceof ManagedInstance) {
                             ManagedInstance managedInstance = (ManagedInstance) value;
                             MutableModelNode targetNode = managedInstance.getBackingNode();
                             propertyNode.setTarget(targetNode);
-                        } else if (propertySchema instanceof ScalarCollectionSchema && value instanceof Collection) {
-                            ModelView<? extends Collection<?>> modelView = propertyNode.asMutable(COLLECTION_MODEL_TYPE, ruleDescriptor);
-                            Collection<Object> instance = Cast.uncheckedCast(modelView.getInstance());
-                            Collection<Object> values = Cast.uncheckedCast(value);
-                            instance.clear();
-                            instance.addAll(values);
-                            return instance;
                         } else {
                             throw new IllegalArgumentException(String.format("Only managed model instances can be set as property '%s' of class '%s'", name, getType()));
                         }
@@ -206,21 +198,11 @@ public class ManagedModelProjection<M> extends TypeCompatibilityModelProjectionS
     }
 
     @Override
-    public boolean equals(Object o) {
-        return this == o || !(o == null || getClass() != o.getClass()) && super.equals(o);
-    }
-
-    @Override
     public Optional<String> getValueDescription(MutableModelNode modelNode) {
         Object instance = modelNode.asImmutable(ModelType.untyped(), null).getInstance();
         if (instance == null || hasDefaultToString(instance)) {
             return Optional.absent();
         }
         return Optional.of(toStringValueDescription(instance));
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
     }
 }

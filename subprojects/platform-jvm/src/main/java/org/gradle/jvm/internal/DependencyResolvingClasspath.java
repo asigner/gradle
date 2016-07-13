@@ -31,14 +31,10 @@ import org.gradle.api.internal.artifacts.repositories.ResolutionAwareRepository;
 import org.gradle.api.internal.file.AbstractFileCollection;
 import org.gradle.api.internal.tasks.DefaultTaskDependency;
 import org.gradle.api.tasks.TaskDependency;
-import org.gradle.internal.component.local.model.LocalConfigurationMetaData;
-import org.gradle.internal.component.model.ConfigurationMetaData;
+import org.gradle.internal.component.local.model.LocalConfigurationMetadata;
+import org.gradle.internal.component.model.ConfigurationMetadata;
 import org.gradle.internal.resolve.ModuleVersionResolveException;
-import org.gradle.language.base.internal.model.DefaultVariantsMetaData;
-import org.gradle.language.base.internal.model.VariantsMetaData;
 import org.gradle.language.base.internal.resolve.LibraryResolveException;
-import org.gradle.model.internal.manage.schema.ModelSchemaStore;
-import org.gradle.platform.base.BinarySpec;
 import org.gradle.platform.base.internal.BinarySpecInternal;
 
 import java.io.File;
@@ -74,7 +70,7 @@ public class DependencyResolvingClasspath extends AbstractFileCollection {
 
     @Override
     public String getDisplayName() {
-        return String.format("Classpath for %s", descriptor);
+        return "Classpath for " + descriptor;
     }
 
     @Override
@@ -116,10 +112,6 @@ public class DependencyResolvingClasspath extends AbstractFileCollection {
         }
     }
 
-    protected static VariantsMetaData variantsMetaDataFrom(BinarySpec binary, ModelSchemaStore schemaStore) {
-        return DefaultVariantsMetaData.extractFrom(binary, schemaStore);
-    }
-
     class ResolveResult implements DependencyGraphVisitor, DependencyArtifactsVisitor {
         public final DefaultTaskDependency taskDependency = new DefaultTaskDependency();
         public final List<Throwable> notFound = new LinkedList<Throwable>();
@@ -131,9 +123,9 @@ public class DependencyResolvingClasspath extends AbstractFileCollection {
 
         @Override
         public void visitNode(DependencyGraphNode resolvedConfiguration) {
-            ConfigurationMetaData configurationMetaData = resolvedConfiguration.getMetaData();
-            if (configurationMetaData instanceof LocalConfigurationMetaData) {
-                TaskDependency directBuildDependencies = ((LocalConfigurationMetaData) configurationMetaData).getDirectBuildDependencies();
+            ConfigurationMetadata configurationMetadata = resolvedConfiguration.getMetaData();
+            if (configurationMetadata instanceof LocalConfigurationMetadata) {
+                TaskDependency directBuildDependencies = ((LocalConfigurationMetadata) configurationMetadata).getDirectBuildDependencies();
                 taskDependency.add(directBuildDependencies);
             }
 

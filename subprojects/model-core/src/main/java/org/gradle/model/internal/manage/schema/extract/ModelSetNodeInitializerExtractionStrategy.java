@@ -54,11 +54,11 @@ public class ModelSetNodeInitializerExtractionStrategy extends CollectionNodeIni
         }
 
         @Override
-        public ModelView<ModelSet<T>> toView(MutableModelNode modelNode, ModelRuleDescriptor ruleDescriptor, boolean writable) {
+        public ModelView<ModelSet<T>> toView(MutableModelNode modelNode, ModelRuleDescriptor ruleDescriptor, boolean mutable) {
             ModelType<ModelSet<T>> setType = ModelTypes.modelSet(elementType);
-            DefaultModelViewState state = new DefaultModelViewState(setType, ruleDescriptor, writable, !writable);
+            DefaultModelViewState state = new DefaultModelViewState(modelNode.getPath(), setType, ruleDescriptor, mutable, !mutable);
             ChildNodeInitializerStrategy<T> childStrategy = Cast.uncheckedCast(modelNode.getPrivateData(ChildNodeInitializerStrategy.class));
-            NodeBackedModelSet<T> set = new NodeBackedModelSet<T>(setType.toString() + " '" + modelNode.getPath() + "'", elementType, ruleDescriptor, modelNode, state, childStrategy);
+            NodeBackedModelSet<T> set = new NodeBackedModelSet<T>(setType, elementType, ruleDescriptor, modelNode, state, childStrategy);
             return InstanceModelView.of(modelNode.getPath(), setType, set, state.closer());
         }
 

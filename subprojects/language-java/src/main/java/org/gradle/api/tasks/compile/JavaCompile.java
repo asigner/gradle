@@ -31,7 +31,12 @@ import org.gradle.api.internal.tasks.compile.incremental.cache.GeneralCompileCac
 import org.gradle.api.internal.tasks.compile.incremental.deps.LocalClassSetAnalysisStore;
 import org.gradle.api.internal.tasks.compile.incremental.jar.JarSnapshotCache;
 import org.gradle.api.internal.tasks.compile.incremental.jar.LocalJarClasspathSnapshotStore;
-import org.gradle.api.tasks.*;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.ParallelizableTask;
+import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs;
 import org.gradle.cache.CacheRepository;
 import org.gradle.internal.Factory;
@@ -97,13 +102,13 @@ public class JavaCompile extends AbstractCompile {
         SingleMessageLogger.incubatingFeatureUsed("Incremental java compilation");
 
         DefaultJavaCompileSpec spec = createSpec();
-        final CacheRepository repository1 = getCacheRepository();
-        final JavaCompile javaCompile1 = this;
-        final GeneralCompileCaches generalCaches1 = getGeneralCompileCaches();
+        final CacheRepository cacheRepository = getCacheRepository();
+        final GeneralCompileCaches generalCompileCaches = getGeneralCompileCaches();
+
         CompileCaches compileCaches = new CompileCaches() {
-            private final CacheRepository repository = repository1;
-            private final JavaCompile javaCompile = javaCompile1;
-            private final GeneralCompileCaches generalCaches = generalCaches1;
+            private final CacheRepository repository = cacheRepository;
+            private final JavaCompile javaCompile = JavaCompile.this;
+            private final GeneralCompileCaches generalCaches = generalCompileCaches;
 
             public ClassAnalysisCache getClassAnalysisCache() {
                 return generalCaches.getClassAnalysisCache();
@@ -122,18 +127,24 @@ public class JavaCompile extends AbstractCompile {
             }
         };
         IncrementalCompilerFactory factory = new IncrementalCompilerFactory(
-                (FileOperations) getProject(), getPath(), createCompiler(spec), source, compileCaches, (IncrementalTaskInputsInternal) inputs);
+                getFileOperations(), getPath(), createCompiler(spec), source, compileCaches, (IncrementalTaskInputsInternal) inputs);
         Compiler<JavaCompileSpec> compiler = factory.createCompiler();
         performCompilation(spec, compiler);
+    }
+
+    @Inject protected FileOperations getFileOperations() {
+        throw new UnsupportedOperationException();
     }
 
     @Inject protected GeneralCompileCaches getGeneralCompileCaches() {
         throw new UnsupportedOperationException();
     }
+
     @Inject protected CacheRepository getCacheRepository() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     protected void compile() {
         DefaultJavaCompileSpec spec = createSpec();
         performCompilation(spec, createCompiler(spec));
@@ -149,6 +160,7 @@ public class JavaCompile extends AbstractCompile {
         return new CleaningJavaCompiler(javaCompiler, getAntBuilderFactory(), getOutputs());
     }
 
+    @Internal
     protected JavaPlatform getPlatform() {
         return DefaultJavaPlatform.current();
     }

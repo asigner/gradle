@@ -48,6 +48,7 @@ import org.gradle.model.internal.registry.ModelRegistry
 import org.gradle.model.internal.type.ModelType
 import org.gradle.platform.base.ComponentSpecContainer
 import org.gradle.platform.base.LibrarySpec
+import org.gradle.platform.base.internal.DefaultComponentSpecIdentifier
 import org.gradle.platform.base.internal.DefaultDependencySpecContainer
 import org.gradle.platform.base.internal.VariantAspectExtractionStrategy
 import spock.lang.Specification
@@ -62,7 +63,7 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
     ProjectModelResolver projectModelResolver
     Project rootProject
     LocalLibraryDependencyResolver resolver
-    DependencyMetaData metadata
+    DependencyMetadata metadata
     LibraryComponentSelector selector
     ModuleVersionSelector requested
     JavaPlatform platform
@@ -87,7 +88,7 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
         def errorMessageBuilder = new DefaultLibraryResolutionErrorMessageBuilder(variants, schemaStore)
         def variantDimensionSelectorFactories = [DefaultVariantAxisCompatibilityFactory.of(JavaPlatform, new DefaultJavaPlatformVariantAxisCompatibility())]
         resolver = new LocalLibraryDependencyResolver(JarBinarySpec, projectModelResolver, variantDimensionSelectorFactories, variants, schemaStore, libraryAdapter, errorMessageBuilder)
-        metadata = Mock(DependencyMetaData)
+        metadata = Mock(DependencyMetadata)
         selector = Mock(LibraryComponentSelector)
         requested = Mock(ModuleVersionSelector)
         metadata.requested >> requested
@@ -163,7 +164,7 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
 
     def "handles library artifacts"() {
         given:
-        def artifact = Mock(ComponentArtifactMetaData)
+        def artifact = Mock(ComponentArtifactMetadata)
         def result = new DefaultBuildableArtifactResolveResult()
         artifact.componentId >> Mock(LibraryBinaryIdentifier)
 
@@ -176,7 +177,7 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
 
     def "ignores non library artifacts"() {
         given:
-        def artifact = Mock(ComponentArtifactMetaData)
+        def artifact = Mock(ComponentArtifactMetadata)
         def result = new DefaultBuildableArtifactResolveResult()
         artifact.componentId >> Mock(ModuleComponentIdentifier)
 
@@ -190,7 +191,7 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
     @Unroll
     def "handles library module artifacts for #type"() {
         given:
-        def component = Mock(ComponentResolveMetaData)
+        def component = Mock(ComponentResolveMetadata)
         def result = new DefaultBuildableArtifactSetResolveResult()
         component.componentId >> Mock(LibraryBinaryIdentifier)
 
@@ -207,7 +208,7 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
     @Unroll
     def "ignores non library module artifacts for #type"() {
         given:
-        def component = Mock(ComponentResolveMetaData)
+        def component = Mock(ComponentResolveMetadata)
         def result = new DefaultBuildableArtifactSetResolveResult()
         component.componentId >> Mock(ModuleComponentIdentifier)
 
@@ -236,9 +237,9 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
                 lib.dependencies >> new DefaultDependencySpecContainer()
                 lib.sources >> sources
 
-                def apiJar = new DefaultJarFile()
+                def apiJar = newDefaultJarFile("apiJar")
                 apiJar.setFile(new File("api.jar"))
-                def runtimeJar = new DefaultJarFile()
+                def runtimeJar = newDefaultJarFile("runtimeJar")
                 runtimeJar.setFile(new File('runtime.jar'))
 
                 def binaries = Mock(ModelMap)
@@ -273,5 +274,9 @@ class JvmLocalLibraryDependencyResolverTest extends Specification {
             map
             components.withType(_) >> map
         }
+    }
+
+    private DefaultJarFile newDefaultJarFile(String componentName) {
+        new DefaultJarFile(new DefaultComponentSpecIdentifier(":", componentName))
     }
 }

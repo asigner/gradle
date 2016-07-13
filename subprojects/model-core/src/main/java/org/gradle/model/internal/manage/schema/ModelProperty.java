@@ -23,7 +23,7 @@ import com.google.common.collect.Maps;
 import net.jcip.annotations.ThreadSafe;
 import org.gradle.api.Nullable;
 import org.gradle.internal.Cast;
-import org.gradle.model.internal.manage.schema.extract.PropertyAccessorType;
+import org.gradle.internal.reflect.PropertyAccessorType;
 import org.gradle.model.internal.method.WeaklyTypeReferencingMethod;
 import org.gradle.model.internal.type.ModelType;
 
@@ -31,6 +31,8 @@ import java.lang.annotation.Annotation;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+
+import static org.gradle.internal.reflect.PropertyAccessorType.hasSetter;
 
 @ThreadSafe
 public class ModelProperty<T> {
@@ -65,12 +67,8 @@ public class ModelProperty<T> {
         this.schema = schema;
     }
 
-    public boolean isReadable() {
-        return accessors.containsKey(PropertyAccessorType.IS_GETTER) || accessors.containsKey(PropertyAccessorType.GET_GETTER);
-    }
-
     public boolean isWritable() {
-        return accessors.containsKey(PropertyAccessorType.SETTER);
+        return hasSetter(accessors.keySet());
     }
 
     public Set<ModelType<?>> getDeclaredBy() {

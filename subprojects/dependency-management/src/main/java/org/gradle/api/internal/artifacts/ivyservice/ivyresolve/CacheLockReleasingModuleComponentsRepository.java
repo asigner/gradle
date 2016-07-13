@@ -56,8 +56,8 @@ public class CacheLockReleasingModuleComponentsRepository extends BaseModuleComp
             this.cacheLockingManager = cacheLockingManager;
         }
 
-        public void listModuleVersions(final DependencyMetaData dependency, final BuildableModuleVersionListingResolveResult result) {
-            cacheLockingManager.longRunningOperation(String.format("List %s using repository %s", dependency, name), new Runnable() {
+        public void listModuleVersions(final DependencyMetadata dependency, final BuildableModuleVersionListingResolveResult result) {
+            cacheLockingManager.longRunningOperation("List " + dependency + " using repository " + name, new Runnable() {
                 public void run() {
                     delegate.listModuleVersions(dependency, result);
                 }
@@ -66,23 +66,23 @@ public class CacheLockReleasingModuleComponentsRepository extends BaseModuleComp
 
         public void resolveComponentMetaData(final ModuleComponentIdentifier moduleComponentIdentifier,
                                              final ComponentOverrideMetadata requestMetaData, final BuildableModuleComponentMetaDataResolveResult result) {
-            cacheLockingManager.longRunningOperation(String.format("Resolve %s using repository %s", moduleComponentIdentifier, name), new Runnable() {
+            cacheLockingManager.longRunningOperation("Resolve " + moduleComponentIdentifier + " using repository " + name, new Runnable() {
                 public void run() {
                     delegate.resolveComponentMetaData(moduleComponentIdentifier, requestMetaData, result);
                 }
             });
         }
 
-        public void resolveModuleArtifacts(final ComponentResolveMetaData component, final ArtifactType artifactType, final BuildableArtifactSetResolveResult result) {
-            cacheLockingManager.longRunningOperation(String.format("Resolve %s for %s using repository %s", artifactType, component, name), new Runnable() {
+        public void resolveModuleArtifacts(final ComponentResolveMetadata component, final ArtifactType artifactType, final BuildableArtifactSetResolveResult result) {
+            cacheLockingManager.longRunningOperation("Resolve " + artifactType + " for " + component + " using repository " + name, new Runnable() {
                 public void run() {
                     delegate.resolveModuleArtifacts(component, artifactType, result);
                 }
             });
         }
 
-        public void resolveModuleArtifacts(final ComponentResolveMetaData component, final ComponentUsage componentUsage, final BuildableArtifactSetResolveResult result) {
-            cacheLockingManager.longRunningOperation(String.format("Resolve %s for %s using repository %s", componentUsage, component, name), new Runnable() {
+        public void resolveModuleArtifacts(final ComponentResolveMetadata component, final ComponentUsage componentUsage, final BuildableArtifactSetResolveResult result) {
+            cacheLockingManager.longRunningOperation("Resolve " + componentUsage + " for " + component + " using repository " + name, new Runnable() {
                 public void run() {
                     delegate.resolveModuleArtifacts(component, componentUsage, result);
                 }
@@ -90,8 +90,8 @@ public class CacheLockReleasingModuleComponentsRepository extends BaseModuleComp
         }
 
 
-        public void resolveArtifact(final ComponentArtifactMetaData artifact, final ModuleSource moduleSource, final BuildableArtifactResolveResult result) {
-            cacheLockingManager.longRunningOperation(String.format("Download %s using repository %s", artifact, name), new Runnable() {
+        public void resolveArtifact(final ComponentArtifactMetadata artifact, final ModuleSource moduleSource, final BuildableArtifactResolveResult result) {
+            cacheLockingManager.longRunningOperation("Download " + artifact + " using repository " + name, new Runnable() {
                 public void run() {
                     delegate.resolveArtifact(artifact, moduleSource, result);
                 }

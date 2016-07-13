@@ -29,6 +29,8 @@ import org.gradle.jvm.platform.JavaPlatform;
 import org.gradle.language.base.DependentSourceSet;
 import org.gradle.language.base.LanguageSourceSet;
 import org.gradle.language.base.internal.SourceTransformTaskConfig;
+import org.gradle.language.base.internal.model.DefaultVariantsMetaData;
+import org.gradle.language.base.internal.model.VariantsMetaData;
 import org.gradle.language.base.internal.registry.LanguageTransform;
 import org.gradle.language.base.internal.registry.LanguageTransformContainer;
 import org.gradle.language.base.plugins.ComponentModelBasePlugin;
@@ -38,13 +40,13 @@ import org.gradle.language.java.tasks.PlatformJavaCompile;
 import org.gradle.language.jvm.plugins.JvmResourcesPlugin;
 import org.gradle.model.Mutate;
 import org.gradle.model.RuleSource;
+import org.gradle.model.internal.manage.schema.ModelSchema;
 import org.gradle.model.internal.manage.schema.ModelSchemaStore;
 import org.gradle.platform.base.BinarySpec;
+import org.gradle.platform.base.ComponentType;
 import org.gradle.platform.base.DependencySpec;
-import org.gradle.platform.base.LanguageType;
-import org.gradle.platform.base.LanguageTypeBuilder;
+import org.gradle.platform.base.TypeBuilder;
 import org.gradle.platform.base.internal.BinarySpecInternal;
-import org.gradle.util.CollectionUtils;
 
 import java.io.File;
 import java.util.Collections;
@@ -52,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Iterables.concat;
+import static org.gradle.util.CollectionUtils.collect;
 import static org.gradle.util.CollectionUtils.first;
 
 /**
@@ -61,6 +64,7 @@ import static org.gradle.util.CollectionUtils.first;
 @Incubating
 public class JavaLanguagePlugin implements Plugin<Project> {
 
+    @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ComponentModelBasePlugin.class);
         project.getPluginManager().apply(JvmResourcesPlugin.class);
@@ -68,9 +72,8 @@ public class JavaLanguagePlugin implements Plugin<Project> {
 
     @SuppressWarnings("UnusedDeclaration")
     static class Rules extends RuleSource {
-        @LanguageType
-        void registerLanguage(LanguageTypeBuilder<JavaSourceSet> builder) {
-            builder.setLanguageName("java");
+        @ComponentType
+        void registerLanguage(TypeBuilder<JavaSourceSet> builder) {
             builder.defaultImplementation(DefaultJavaLanguageSourceSet.class);
         }
 
@@ -91,56 +94,32 @@ public class JavaLanguagePlugin implements Plugin<Project> {
             this.config = new JavaSourceTransformTaskConfig(schemaStore);
         }
 
+        @Override
+        public String getLanguageName() {
+            return "java";
+        }
+
+        @Override
         public Class<JavaSourceSet> getSourceSetType() {
             return JavaSourceSet.class;
         }
 
+        @Override
         public Map<String, Class<?>> getBinaryTools() {
             return Collections.emptyMap();
         }
 
+        @Override
         public Class<JvmByteCode> getOutputType() {
             return JvmByteCode.class;
         }
 
+        @Override
         public SourceTransformTaskConfig getTransformTask() {
             return config;
         }
 
-        private static File conventionalCompilationOutputDirFor(JvmAssembly assembly) {
-            return first(assembly.getClassDirectories());
-        }
-
-        private static SourceSetDependencyResolvingClasspath classpathFor(BinarySpec binary, JavaSourceSet javaSourceSet, ServiceRegistry serviceRegistry, ModelSchemaStore schemaStore) {
-            Iterable<DependencySpec> dependencies = compileDependencies(binary, javaSourceSet);
-
-            ArtifactDependencyResolver dependencyResolver = serviceRegistry.get(ArtifactDependencyResolver.class);
-            RepositoryHandler repositories = serviceRegistry.get(RepositoryHandler.class);
-            List<ResolutionAwareRepository> resolutionAwareRepositories = CollectionUtils.collect(repositories, Transformers.cast(ResolutionAwareRepository.class));
-            return new SourceSetDependencyResolvingClasspath((BinarySpecInternal) binary, javaSourceSet, dependencies, dependencyResolver, schemaStore, resolutionAwareRepositories);
-        }
-
-        private static Iterable<DependencySpec> compileDependencies(BinarySpec binary, DependentSourceSet sourceSet) {
-            return concat(
-                sourceSet.getDependencies().getDependencies(),
-                componentDependenciesOf(binary),
-                apiDependenciesOf(binary));
-        }
-
-        private static Iterable<DependencySpec> componentDependenciesOf(BinarySpec binary) {
-            return binary instanceof WithDependencies
-                ? ((WithDependencies) binary).getDependencies()
-                : NO_DEPENDENCIES;
-        }
-
-        private static Iterable<DependencySpec> apiDependenciesOf(BinarySpec binary) {
-            return binary instanceof JarBinarySpecInternal
-                ? ((JarBinarySpecInternal) binary).getApiDependencies()
-                : NO_DEPENDENCIES;
-        }
-
-        private static final Iterable<DependencySpec> NO_DEPENDENCIES = ImmutableSet.of();
-
+        @Override
         public boolean applyToBinary(BinarySpec binary) {
             return binary instanceof WithJvmAssembly;
         }
@@ -153,21 +132,24 @@ public class JavaLanguagePlugin implements Plugin<Project> {
                 this.schemaStore = schemaStore;
             }
 
+            @Override
             public String getTaskPrefix() {
                 return "compile";
             }
 
+            @Override
             public Class<? extends DefaultTask> getTaskType() {
                 return PlatformJavaCompile.class;
             }
 
+            @Override
             public void configureTask(Task task, BinarySpec binary, LanguageSourceSet sourceSet, ServiceRegistry serviceRegistry) {
                 PlatformJavaCompile compile = (PlatformJavaCompile) task;
                 JavaSourceSet javaSourceSet = (JavaSourceSet) sourceSet;
                 JvmAssembly assembly = ((WithJvmAssembly) binary).getAssembly();
                 assembly.builtBy(compile);
 
-                compile.setDescription(String.format("Compiles %s.", javaSourceSet));
+                compile.setDescription("Compiles " + javaSourceSet + ".");
                 compile.setDestinationDir(conventionalCompilationOutputDirFor(assembly));
                 compile.setDependencyCacheDir(new File(compile.getProject().getBuildDir(), "jvm-dep-cache"));
                 compile.dependsOn(javaSourceSet);
@@ -182,8 +164,43 @@ public class JavaLanguagePlugin implements Plugin<Project> {
 
                 SourceSetDependencyResolvingClasspath classpath = classpathFor(binary, javaSourceSet, serviceRegistry, schemaStore);
                 compile.setClasspath(classpath);
-
             }
+
+            private static File conventionalCompilationOutputDirFor(JvmAssembly assembly) {
+                return first(assembly.getClassDirectories());
+            }
+
+            private static SourceSetDependencyResolvingClasspath classpathFor(BinarySpec binary, JavaSourceSet javaSourceSet, ServiceRegistry serviceRegistry, ModelSchemaStore schemaStore) {
+                Iterable<DependencySpec> dependencies = compileDependencies(binary, javaSourceSet);
+
+                ArtifactDependencyResolver dependencyResolver = serviceRegistry.get(ArtifactDependencyResolver.class);
+                RepositoryHandler repositories = serviceRegistry.get(RepositoryHandler.class);
+                List<ResolutionAwareRepository> resolutionAwareRepositories = collect(repositories, Transformers.cast(ResolutionAwareRepository.class));
+                ModelSchema<? extends BinarySpec> schema = schemaStore.getSchema(((BinarySpecInternal) binary).getPublicType());
+                VariantsMetaData variantsMetaData = DefaultVariantsMetaData.extractFrom(binary, schema);
+                return new SourceSetDependencyResolvingClasspath((BinarySpecInternal) binary, javaSourceSet, dependencies, dependencyResolver, variantsMetaData, resolutionAwareRepositories);
+            }
+
+            private static Iterable<DependencySpec> compileDependencies(BinarySpec binary, DependentSourceSet sourceSet) {
+                return concat(
+                    sourceSet.getDependencies().getDependencies(),
+                    componentDependenciesOf(binary),
+                    apiDependenciesOf(binary));
+            }
+
+            private static Iterable<DependencySpec> componentDependenciesOf(BinarySpec binary) {
+                return binary instanceof WithDependencies
+                    ? ((WithDependencies) binary).getDependencies()
+                    : NO_DEPENDENCIES;
+            }
+
+            private static Iterable<DependencySpec> apiDependenciesOf(BinarySpec binary) {
+                return binary instanceof JarBinarySpecInternal
+                    ? ((JarBinarySpecInternal) binary).getApiDependencies()
+                    : NO_DEPENDENCIES;
+            }
+
+            private static final Iterable<DependencySpec> NO_DEPENDENCIES = ImmutableSet.of();
         }
     }
 }

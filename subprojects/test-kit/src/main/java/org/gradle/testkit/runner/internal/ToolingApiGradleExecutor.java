@@ -21,16 +21,23 @@ import org.gradle.internal.SystemProperties;
 import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.InvalidRunnerConfigurationException;
 import org.gradle.testkit.runner.TaskOutcome;
-import org.gradle.testkit.runner.internal.dist.GradleDistribution;
-import org.gradle.testkit.runner.internal.dist.InstalledGradleDistribution;
-import org.gradle.testkit.runner.internal.dist.URILocatedGradleDistribution;
-import org.gradle.testkit.runner.internal.dist.VersionBasedGradleDistribution;
+import org.gradle.testkit.runner.UnsupportedFeatureException;
+import org.gradle.testkit.runner.internal.feature.TestKitFeature;
 import org.gradle.testkit.runner.internal.io.NoCloseOutputStream;
 import org.gradle.testkit.runner.internal.io.SynchronizedOutputStream;
-import org.gradle.tooling.*;
+import org.gradle.tooling.BuildException;
+import org.gradle.tooling.GradleConnectionException;
+import org.gradle.tooling.GradleConnector;
+import org.gradle.tooling.ProjectConnection;
+import org.gradle.tooling.UnsupportedVersionException;
 import org.gradle.tooling.events.ProgressEvent;
 import org.gradle.tooling.events.ProgressListener;
-import org.gradle.tooling.events.task.*;
+import org.gradle.tooling.events.task.TaskFailureResult;
+import org.gradle.tooling.events.task.TaskFinishEvent;
+import org.gradle.tooling.events.task.TaskOperationResult;
+import org.gradle.tooling.events.task.TaskSkippedResult;
+import org.gradle.tooling.events.task.TaskStartEvent;
+import org.gradle.tooling.events.task.TaskSuccessResult;
 import org.gradle.tooling.internal.consumer.DefaultBuildLauncher;
 import org.gradle.tooling.internal.consumer.DefaultGradleConnector;
 import org.gradle.tooling.model.build.BuildEnvironment;
@@ -80,7 +87,7 @@ public class ToolingApiGradleExecutor implements GradleExecutor {
             parameters.getGradleUserHome(),
             parameters.getProjectDir(),
             parameters.isEmbedded(),
-            parameters.getGradleDistribution()
+            parameters.getGradleProvider()
         );
 
         ProjectConnection connection = null;
@@ -89,6 +96,10 @@ public class ToolingApiGradleExecutor implements GradleExecutor {
         try {
             connection = gradleConnector.connect();
             targetGradleVersion = determineTargetGradleVersion(connection);
+            if (targetGradleVersion.compareTo(TestKitFeature.RUN_BUILDS.getSince()) < 0) {
+                throw new UnsupportedFeatureException(String.format("The version of Gradle you are using (%s) is not supported by TestKit. TestKit supports all Gradle versions 1.2 and later.", targetGradleVersion.getVersion()));
+            }
+
             DefaultBuildLauncher launcher = (DefaultBuildLauncher) connection.newBuild();
 
             launcher.setStandardOutput(new NoCloseOutputStream(teeOutput(syncOutput, parameters.getStandardOutput())));
@@ -96,10 +107,15 @@ public class ToolingApiGradleExecutor implements GradleExecutor {
 
             launcher.addProgressListener(new TaskExecutionProgressListener(tasks));
 
-            launcher.withArguments(parameters.getBuildArgs().toArray(new String[parameters.getBuildArgs().size()]));
-            launcher.setJvmArguments(parameters.getJvmArgs().toArray(new String[parameters.getJvmArgs().size()]));
+            launcher.withArguments(parameters.getBuildArgs().toArray(new String[0]));
+            launcher.setJvmArguments(parameters.getJvmArgs().toArray(new String[0]));
 
-            launcher.withInjectedClassPath(parameters.getInjectedClassPath());
+            if (!parameters.getInjectedClassPath().isEmpty()) {
+                if (targetGradleVersion.compareTo(TestKitFeature.PLUGIN_CLASSPATH_INJECTION.getSince()) < 0) {
+                    throw new UnsupportedFeatureException("support plugin classpath injection", targetGradleVersion, TestKitFeature.PLUGIN_CLASSPATH_INJECTION.getSince());
+                }
+                launcher.withInjectedClassPath(parameters.getInjectedClassPath());
+            }
 
             launcher.run();
         } catch (UnsupportedVersionException e) {
@@ -148,9 +164,10 @@ public class ToolingApiGradleExecutor implements GradleExecutor {
         }
     }
 
-    private GradleConnector buildConnector(File gradleUserHome, File projectDir, boolean embedded, GradleDistribution gradleDistribution) {
+    private GradleConnector buildConnector(File gradleUserHome, File projectDir, boolean embedded, GradleProvider gradleProvider) {
         DefaultGradleConnector gradleConnector = (DefaultGradleConnector) GradleConnector.newConnector();
-        useGradleDistribution(gradleConnector, gradleDistribution);
+        gradleConnector.useDistributionBaseDir(GradleUserHomeLookup.gradleUserHome());
+        gradleProvider.applyTo(gradleConnector);
         gradleConnector.useGradleUserHomeDir(gradleUserHome);
         gradleConnector.daemonBaseDir(new File(gradleUserHome, TEST_KIT_DAEMON_DIR_NAME));
         gradleConnector.forProjectDirectory(projectDir);
@@ -158,18 +175,6 @@ public class ToolingApiGradleExecutor implements GradleExecutor {
         gradleConnector.daemonMaxIdleTime(120, TimeUnit.SECONDS);
         gradleConnector.embedded(embedded);
         return gradleConnector;
-    }
-
-    private void useGradleDistribution(DefaultGradleConnector gradleConnector, GradleDistribution gradleDistribution) {
-        gradleConnector.useDistributionBaseDir(GradleUserHomeLookup.gradleUserHome());
-
-        if (gradleDistribution instanceof InstalledGradleDistribution) {
-            gradleConnector.useInstallation(((InstalledGradleDistribution) gradleDistribution).getGradleHome());
-        } else if (gradleDistribution instanceof URILocatedGradleDistribution) {
-            gradleConnector.useDistribution(((URILocatedGradleDistribution) gradleDistribution).getLocation());
-        } else if (gradleDistribution instanceof VersionBasedGradleDistribution) {
-            gradleConnector.useGradleVersion(((VersionBasedGradleDistribution) gradleDistribution).getGradleVersion());
-        }
     }
 
     private class TaskExecutionProgressListener implements ProgressListener {

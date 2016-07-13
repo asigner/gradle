@@ -43,7 +43,7 @@ import java.util.Set;
  * An abstract Scala compile task sharing common functionality for compiling scala.
  */
 @Incubating
-abstract public class AbstractScalaCompile extends AbstractCompile {
+public abstract class AbstractScalaCompile extends AbstractCompile {
     protected static final Logger LOGGER = Logging.getLogger(AbstractScalaCompile.class);
     private final BaseScalaCompileOptions scalaCompileOptions;
     private final CompileOptions compileOptions = new CompileOptions();
@@ -70,6 +70,7 @@ abstract public class AbstractScalaCompile extends AbstractCompile {
 
     abstract protected org.gradle.language.base.internal.compile.Compiler<ScalaJavaJointCompileSpec> getCompiler(ScalaJavaJointCompileSpec spec);
 
+    @Override
     @TaskAction
     protected void compile() {
         ScalaJavaJointCompileSpec spec = createSpec();
@@ -93,7 +94,7 @@ abstract public class AbstractScalaCompile extends AbstractCompile {
 
     protected void configureIncrementalCompilation(ScalaCompileSpec spec) {
 
-        Map<File, File> globalAnalysisMap = getOrCreateGlobalAnalysisMap();
+        Map<File, File> globalAnalysisMap = createOrGetGlobalAnalysisMap();
         HashMap<File, File> filteredMap = filterForClasspath(globalAnalysisMap, spec.getClasspath());
         spec.setAnalysisMap(filteredMap);
 
@@ -105,7 +106,7 @@ abstract public class AbstractScalaCompile extends AbstractCompile {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<File, File> getOrCreateGlobalAnalysisMap() {
+    protected Map<File, File> createOrGetGlobalAnalysisMap() {
         ExtraPropertiesExtension extraProperties = getProject().getRootProject().getExtensions().getExtraProperties();
         Map<File, File> analysisMap;
 

@@ -18,13 +18,14 @@ package org.gradle.performance.fixture;
 
 import java.util.List;
 
-public class PerformanceTestResult {
+public abstract class PerformanceTestResult {
     String testId;
     String jvm;
     String operatingSystem;
     long testTime;
     String vcsBranch;
     List<String> vcsCommits;
+    List<String> previousTestIds;
     String versionUnderTest;
 
     public String getTestId() {
@@ -33,6 +34,14 @@ public class PerformanceTestResult {
 
     public void setTestId(String testId) {
         this.testId = testId;
+    }
+
+    public List<String> getPreviousTestIds() {
+        return previousTestIds;
+    }
+
+    public void setPreviousTestIds(List<String> previousTestIds) {
+        this.previousTestIds = previousTestIds;
     }
 
     public long getTestTime() {
@@ -82,4 +91,7 @@ public class PerformanceTestResult {
     public void setJvm(String jvm) {
         this.jvm = jvm;
     }
+
+    public abstract void assertEveryBuildSucceeds();
+
 }

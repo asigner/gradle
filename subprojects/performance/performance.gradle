@@ -1,13 +1,24 @@
 import groovy.json.JsonSlurper
+import org.gradle.internal.hash.HashUtil
 import org.gradle.performance.generator.DependencyGenerator
 import org.gradle.performance.generator.tasks.JvmProjectGeneratorTask
 import org.gradle.performance.generator.tasks.MonolithicNativeProjectGeneratorTask
 import org.gradle.performance.generator.tasks.NativeProjectGeneratorTask
 import org.gradle.performance.generator.tasks.ProjectGeneratorTask
 
-import java.util.regex.Pattern
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath 'me.champeau.gradle:jmh-gradle-plugin:0.3.1'
+    }
+}
 
 apply plugin: 'javascript-base'
+apply plugin: 'me.champeau.gradle.jmh'
 
 configurations {
     junit
@@ -24,6 +35,8 @@ dependencies {
     reports "flot:flot:0.8.1:min@js"
 
     compile libraries.groovy
+    compile project(':baseServices')
+
     testFixturesCompile libraries.slf4j_api
     testFixturesCompile project(':internalIntegTesting')
     testFixturesCompile 'com.googlecode.jatl:jatl:0.2.2'
@@ -35,7 +48,18 @@ dependencies {
 }
 
 useTestFixtures()
+useTestFixtures(project: ':toolingApi', sourceSet: 'testFixtures')
 useClassycle()
+
+jmh {
+    jmhVersion = '1.12'
+    include = 'org\\.gradle\\.experiments\\.reflection\\..*'
+    includeTests = false
+    warmupIterations = 10
+    threads = 2
+    synchronizeIterations = false
+    fork = 4
+}
 
 task reportResources(type: Copy) {
     from configurations.reports
@@ -66,6 +90,18 @@ task mixedSize(type: JvmProjectGeneratorTask) {
 task withJUnit(type: JvmProjectGeneratorTask) {
     projects = 1
     sourceFiles = 100
+    subProjectTemplates << 'with-junit'
+}
+
+task mediumWithJUnit(type: JvmProjectGeneratorTask) {
+    projects = 25
+    sourceFiles = 200
+    subProjectTemplates << 'with-junit'
+}
+
+task largeWithJUnit(type: JvmProjectGeneratorTask) {
+    projects = 50
+    sourceFiles = 300
     subProjectTemplates << 'with-junit'
 }
 
@@ -103,14 +139,10 @@ task multiGroovyScala(type: JvmProjectGeneratorTask, description: 'Generates a m
     scalaProject = true
 }
 
-task largeMulti(type: JvmProjectGeneratorTask, description: 'Generates a large multi-project build') {
-    projects = 800
-    sourceFiles = 100
-}
-
 task lotDependencies(type: JvmProjectGeneratorTask, description: 'Generates a small multi-project build with a large Dependency Graph') {
     projects = 5
     sourceFiles = 100
+    templateArgs = [resolveDependenciesTask: true]
 
     dependencyGraph {
         size = 200
@@ -294,6 +326,26 @@ task bigNative(type: NativeProjectGeneratorTask) {
     subProjectTemplates = ['native-source', 'native-component']
 }
 
+task multiNative(type: NativeProjectGeneratorTask) {
+    projects = 10
+    sourceFiles = 20
+    templateArgs = [
+        moduleCount: 10,
+        functionCount: 20
+    ]
+    subProjectTemplates = ['native-source', 'native-component']
+}
+
+task manyProjectsNative(type: NativeProjectGeneratorTask) {
+    projects = 100
+    sourceFiles = 1
+    templateArgs = [
+        moduleCount: 3,
+        functionCount: 1
+    ]
+    subProjectTemplates = ['native-source', 'native-component']
+}
+
 task smallPCHNative(type: NativeProjectGeneratorTask) {
     projects = 1
     sourceFiles = 20
@@ -322,26 +374,6 @@ task bigPCHNative(type: NativeProjectGeneratorTask) {
         functionCount: 1
     ]
     subProjectTemplates = ['native-pch-source', 'native-pch-component']
-}
-
-task multiNative(type: NativeProjectGeneratorTask) {
-    projects = 10
-    sourceFiles = 20
-    templateArgs = [
-        moduleCount: 10,
-        functionCount: 20
-    ]
-    subProjectTemplates = ['native-source', 'native-component']
-}
-
-task manyProjectsNative(type: NativeProjectGeneratorTask) {
-    projects = 100
-    sourceFiles = 1
-    templateArgs = [
-        moduleCount: 3,
-        functionCount: 1
-    ]
-    subProjectTemplates = ['native-source', 'native-component']
 }
 
 task smallScenarioNative(type: NativeProjectGeneratorTask) {
@@ -385,7 +417,7 @@ task smallJavaSwModelProject(type: JvmProjectGeneratorTask) {
 }
 
 task largeJavaSwModelProject(type: JvmProjectGeneratorTask) {
-    projects = 100
+    projects = 50
     sourceFiles = 1000
 }
 
@@ -395,7 +427,7 @@ task smallJavaSwModelCompileAvoidanceWithApi(type: JvmProjectGeneratorTask) {
 }
 
 task largeJavaSwModelCompileAvoidanceWithApi(type: JvmProjectGeneratorTask) {
-    projects = 100
+    projects = 50
     sourceFiles = 1000
 }
 
@@ -405,7 +437,7 @@ task smallJavaSwModelCompileAvoidanceWithoutApi(type: JvmProjectGeneratorTask) {
 }
 
 task largeJavaSwModelCompileAvoidanceWithoutApi(type: JvmProjectGeneratorTask) {
-    projects = 100
+    projects = 50
     sourceFiles = 1000
 }
 
@@ -414,13 +446,40 @@ task tinyJavaSwApiJarStubbingWithoutApi(type: JvmProjectGeneratorTask) {
     sourceFiles = 1000
 }
 
+task createSomeTasks(type: JvmProjectGeneratorTask) {
+    projects = 1
+    sourceFiles = 0
+    subProjectTemplates = ['task-creation']
+    templateArgs = [
+            taskCount: 1000
+    ]
+    dependencyGraph {
+        size = 0
+    }
+
+    numberOfExternalDependencies = 0
+}
+
+task createLotsOfTasks(type: JvmProjectGeneratorTask) {
+    projects = 1
+    sourceFiles = 0
+    subProjectTemplates = ['task-creation']
+    templateArgs = [
+            taskCount: 15000
+    ]
+    dependencyGraph {
+        size = 0
+    }
+
+    numberOfExternalDependencies = 0
+}
+
 configure([smallJavaSwModelProject, largeJavaSwModelProject,
            smallJavaSwModelCompileAvoidanceWithApi, largeJavaSwModelCompileAvoidanceWithApi,
            smallJavaSwModelCompileAvoidanceWithoutApi, largeJavaSwModelCompileAvoidanceWithoutApi,
            tinyJavaSwApiJarStubbingWithoutApi]) {
     linesOfCodePerSourceFile = 50
     filesPerPackage = 10
-    useSubProjectNumberInSourceFileNames = true
     subProjectTemplates = ['java-source', 'java-sw-model-project', 'with-junit']
 
     def dependencyGenerator = DependencyGenerator.newInstance(numberOfProjects: it.projectCount)
@@ -460,7 +519,6 @@ configure([smallJavaSwModelCompileAvoidanceWithApi,
     templateArgs.useApiDependencies = true
     numberOfExternalDependencies = 0
     createTestComponent = false
-    sourceFiles = 300
     dependencyGraph {
         size = 0
     }
@@ -543,6 +601,15 @@ configure([nativeMonolithicOverlapping, nativeMonolithic, smallNativeMonolithic,
     additionalProjectFiles = ['common.gradle', 'prebuilt.gradle', 'components.gradle']
 }
 
+configure(tasks.withType(JvmProjectGeneratorTask)) {
+    if(project.hasProperty("springDmPluginVersion")) {
+        templateArgs['springDmPluginVersion'] = springDmPluginVersion
+    }
+    if(project.hasProperty("maxProjects")) {
+        projects = maxProjects as Integer
+    }
+}
+
 task all {
     dependsOn tasks.withType(ProjectGeneratorTask)
     group = "Project Setup"
@@ -550,7 +617,7 @@ task all {
 }
 
 task prepareSamples {
-    dependsOn bigEmpty, small, multi, lotDependencies, withJUnit, withTestNG, withVerboseTestNG, withVerboseJUnit, manyProjects,
+    dependsOn bigEmpty, small, multi, lotDependencies, withJUnit, mediumWithJUnit, largeWithJUnit, withTestNG, withVerboseTestNG, withVerboseJUnit, manyProjects,
         smallOldJava, mediumOldJava, bigOldJava, smallNewJava, mediumNewJava, bigNewJava,
         smallVariantsNewModel, mediumVariantsNewModel, bigVariantsNewModel, smallVariantsOldModel, mediumVariantsOldModel, bigVariantsOldModel,
         variantsNewModelMultiproject, variantsOldModelMultiproject, smallNative, mediumNative, bigNative, smallPCHNative, mediumPCHNative, bigPCHNative, multiNative,
@@ -558,16 +625,16 @@ task prepareSamples {
         bigOldJavaMoreSource, lotProjectDependencies, smallJavaSwModelProject, largeJavaSwModelProject,
         nativeMonolithic, nativeMonolithicOverlapping, smallNativeMonolithic, mediumNativeMonolithic,
         smallJavaSwModelCompileAvoidanceWithApi, largeJavaSwModelCompileAvoidanceWithApi, smallJavaSwModelCompileAvoidanceWithoutApi, largeJavaSwModelCompileAvoidanceWithoutApi,
-        tinyJavaSwApiJarStubbingWithoutApi
+        tinyJavaSwApiJarStubbingWithoutApi,
+        createSomeTasks, createLotsOfTasks
     group = "Project Setup"
     description = "Generates all sample projects for automated performance tests"
 }
 
-Pattern buildReceiptPattern = Pattern.compile(".*?build receipt.*?")
-
 task report {
     def reportDir = new File(buildDir, "performance-tests/report")
     inputs.files sourceSets.testFixtures.runtimeClasspath
+    inputs.dir file("${System.getProperty("user.home")}/.gradle-performance-test-data")
     outputs.dir reportDir
 
     doLast {
@@ -599,53 +666,91 @@ task buildReceiptReport {
     }
 }
 
+tasks.withType(Test){
+    ext.performanceTest = false
+}
+
+def performanceTestTasks = tasks.withType(Test).matching { it.performanceTest }
+
+
 task performanceTest(type: Test) {
-    dependsOn prepareSamples
-    finalizedBy report
-    maxParallelForks = 1
+    performanceTest = true
     options {
         includeCategories 'org.gradle.performance.categories.GradleCorePerformanceTest'
     }
 }
 
 task performanceExperiments(type: Test) {
-    dependsOn prepareSamples
-    finalizedBy report
-    maxParallelForks = 1
+    performanceTest = true
     options {
         includeCategories 'org.gradle.performance.categories.Experiment'
     }
 }
 
-def buildReceiptParams = [projects: 100, sourceFiles: 50, template: 'project-with-source']
+task performanceAdhocTest(type: Test) {
+    performanceTest = true
+    systemProperty "GRADLE_ADHOC_PERF_TESTS", "true"
+    maxParallelForks = 1
+}
 
-task largeJavaSwModelProjectWithBuildReceipts(type: JvmProjectGeneratorTask) {
+performanceTestTasks.all {
+    dependsOn prepareSamples
+    dependsOn({ rootProject.getTasksByName('publishLocalArchives', true) }, ':distributions:binZip')
+    finalizedBy report
+    maxParallelForks = 1
+
+    // Some performance builds generate a lot of output,
+    // that is buffered until the test finishes via GradleExecuter.
+    if(System.getProperty('sun.arch.data.model')?.indexOf('64') > -1) {
+        maxHeapSize "8g"
+    }
+}
+
+task largeJavaProjectWithBuildReceiptPlugin(type: JvmProjectGeneratorTask) {
     buildReceiptPluginVersionProvider = {
         def pluginInfo = file("$rootDir/incoming/plugin.json")
         assert pluginInfo.exists()
-        def json = new JsonSlurper().parse(pluginInfo)
+        def json = new JsonSlurper().parse(pluginInfo) as Map<String, ?>
         assert json.versionNumber
         json.versionNumber
     }
 
-    projects = buildReceiptParams.projects
-    sourceFiles = buildReceiptParams.sourceFiles
-    subProjectTemplates = [buildReceiptParams.template]
-}
+    dependencyGraph {
+        size = 100
+        depth = 4
+        useSnapshotVersions = true
+    }
 
-task largeJavaSwModelProjectWithoutBuildReceipts(type: JvmProjectGeneratorTask) {
-    projects = buildReceiptParams.projects
-    sourceFiles = buildReceiptParams.sourceFiles
-    subProjectTemplates = [buildReceiptParams.template]
+    projects = 100
+    sourceFiles = 50
+    subProjectTemplates = ['project-with-source', 'with-verbose-junit']
+    templateArgs = [fullTestLogging: true, testMethodCount: 20, halfTestsFail: true] // 50 test files with 20 tests per project
 }
 
 task buildReceiptPluginPerformanceTest(type: Test) {
-    dependsOn largeJavaSwModelProjectWithBuildReceipts, largeJavaSwModelProjectWithoutBuildReceipts
+    dependsOn largeJavaProjectWithBuildReceiptPlugin
     finalizedBy buildReceiptReport
-    systemProperties += ['incomingArtifactDir': "${rootDir}/incoming/"]
+    systemProperties += [incomingArtifactDir: "${rootDir}/incoming/"]
 
     options {
         includeCategories 'org.gradle.performance.categories.BuildReceiptPluginPerformanceTest'
+    }
+}
+
+task checkNoIdenticalBuildFiles {
+    doLast {
+        def files = [:].withDefault { [] }
+        buildDir.eachFileRecurse {
+            if (it.name.endsWith('.gradle')) {
+                def hash = HashUtil.createHash(it, 'sha1').asHexString()
+                files[hash] << it
+            }
+        }
+        files.each { hash, candidates ->
+            if (candidates.size()>1) {
+                println "Duplicate build files found for hash '$hash' : $candidates"
+            }
+        }
     }
 }
 
@@ -686,3 +791,4 @@ java9IntegTest {
         excludeCategories 'org.gradle.performance.categories.PerformanceTest'
     }
 }
+

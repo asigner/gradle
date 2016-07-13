@@ -17,16 +17,17 @@
 package org.gradle.launcher.daemon
 
 import org.gradle.integtests.fixtures.AvailableJavaHomes
+import org.gradle.integtests.fixtures.daemon.DaemonContextParser
 import org.gradle.integtests.fixtures.daemon.DaemonIntegrationSpec
+import org.gradle.integtests.fixtures.daemon.DaemonLogsAnalyzer
 import org.gradle.integtests.fixtures.executer.GradleHandle
 import org.gradle.internal.jvm.Jvm
-import org.gradle.integtests.fixtures.daemon.DaemonContextParser
+import org.gradle.launcher.daemon.registry.DaemonDir
+import org.gradle.launcher.daemon.server.api.HandleStop
 import org.gradle.launcher.daemon.testing.DaemonEventSequenceBuilder
-import org.gradle.integtests.fixtures.daemon.DaemonLogsAnalyzer
 import spock.lang.IgnoreIf
 
 import static org.gradle.test.fixtures.ConcurrentTestUtil.poll
-
 /**
  * Outlines the lifecycle of the daemon given different sequences of events.
  *
@@ -37,6 +38,7 @@ import static org.gradle.test.fixtures.ConcurrentTestUtil.poll
 class DaemonLifecycleSpec extends DaemonIntegrationSpec {
 
     int daemonIdleTimeout = 100
+    int periodicCheckInterval = 5
     //normally, state transition timeout must be lower than the daemon timeout
     //so that the daemon does not timeout in the middle of the state verification
     //effectively hiding some bugs or making tests fail
@@ -67,8 +69,9 @@ class DaemonLifecycleSpec extends DaemonIntegrationSpec {
     void startBuild(String javaHome = null, String buildEncoding = null) {
         run {
             executer.withTasks("watch")
+            executer.withDaemonIdleTimeoutSecs(daemonIdleTimeout)
             executer.withArguments(
-                    "-Dorg.gradle.daemon.idletimeout=${daemonIdleTimeout * 1000}",
+                    "-Dorg.gradle.daemon.healthcheckinterval=${periodicCheckInterval * 1000}",
                     "--info",
                     "-Dorg.gradle.jvmargs=-ea")
             if (javaHome) {
@@ -104,9 +107,27 @@ class DaemonLifecycleSpec extends DaemonIntegrationSpec {
         }
     }
 
+    void waitForFileDelete(File file) {
+        run {
+            poll(10) { assert(!file.exists()) }
+        }
+    }
+
     void waitForBuildToWait(buildNum = 0) {
         run {
             poll(20) { assert builds[buildNum].standardOutput.contains("waiting for stop file"); }
+        }
+    }
+
+    void waitForDaemonExpiration(buildNum = 0) {
+        run {
+            poll(20) { assert builds[buildNum].standardOutput.contains("Daemon will be stopped at the end of the build") }
+        }
+    }
+
+    void waitForLifecycleLogToContain(buildNum = 0, String expected) {
+        run {
+            poll(20) { assert builds[buildNum].standardOutput.contains(expected) }
         }
     }
 
@@ -146,7 +167,7 @@ class DaemonLifecycleSpec extends DaemonIntegrationSpec {
         if (javaHome) {
             executer.withJavaHome(javaHome)
         }
-        executer.withArguments("--foreground", "--info", "-Dorg.gradle.daemon.idletimeout=${daemonIdleTimeout * 1000}")
+        executer.withArguments("--foreground", "--info", "-Dorg.gradle.daemon.idletimeout=${daemonIdleTimeout * 1000}", "-Dorg.gradle.daemon.healthcheckinterval=${periodicCheckInterval * 1000}",)
         foregroundDaemons << executer.start()
     }
 
@@ -260,6 +281,114 @@ class DaemonLifecycleSpec extends DaemonIntegrationSpec {
         stopped()
     }
 
+    def "stopping daemon that is building shows message"() {
+        when:
+        startBuild()
+
+        then:
+        waitForBuildToWait()
+
+        when:
+        stopDaemons()
+
+        then:
+        waitForLifecycleLogToContain(HandleStop.EXPIRATION_REASON)
+    }
+
+    def "daemon stops after current build if registry is deleted"() {
+        when:
+        startBuild()
+        waitForBuildToWait()
+
+        then:
+        busy()
+        daemonContext {
+            new DaemonDir(executer.daemonBaseDir).registry.delete()
+        }
+
+        then:
+        completeBuild()
+
+        and:
+        stopped()
+    }
+
+    def "idle daemon stops immediately if registry is deleted"() {
+        when:
+        startBuild()
+        waitForBuildToWait()
+
+        then:
+        busy()
+
+        then:
+        completeBuild()
+
+        and:
+        idle()
+
+        when:
+        daemonContext {
+            new DaemonDir(executer.daemonBaseDir).registry.delete()
+        }
+
+        then:
+        stopped()
+    }
+
+    def "daemon stops after current build if registry is deleted and recreated"() {
+        when:
+        startBuild()
+        waitForBuildToWait()
+
+        then:
+        busy()
+        daemonContext {
+            new DaemonDir(executer.daemonBaseDir).registry.delete()
+        }
+        startBuild()
+        waitForBuildToWait(1)
+
+        then:
+        daemonContext(0) {
+            assert(new DaemonDir(executer.daemonBaseDir).registry.exists())
+        }
+        completeBuild(0)
+        completeBuild(1)
+
+        and:
+        idle 1
+    }
+
+    def "starting new build recreates registry and succeeds"() {
+        File registry
+
+        when:
+        startBuild()
+        waitForBuildToWait()
+
+        then:
+        busy()
+        daemonContext {
+            registry = new DaemonDir(executer.daemonBaseDir).registry
+            registry.delete()
+            waitForFileDelete(registry)
+        }
+
+        when:
+        startBuild()
+        waitForBuildToWait()
+
+        then:
+        busy()
+        daemonContext {
+            assert(registry.exists())
+        }
+
+        and:
+        completeBuild()
+    }
+
     @IgnoreIf({ AvailableJavaHomes.differentJdk == null})
     def "if a daemon exists but is using a different java home, a new compatible daemon will be created and used"() {
         when:
@@ -309,6 +438,7 @@ class DaemonLifecycleSpec extends DaemonIntegrationSpec {
 
         when:
         startBuild(null, "UTF-8")
+        waitForLifecycleLogToContain(1, "1 incompatible")
         waitForBuildToWait()
 
         then:

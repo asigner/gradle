@@ -19,6 +19,8 @@ import org.gradle.api.internal.cache.StringInterner
 import org.gradle.api.internal.file.FileResolver
 import org.gradle.api.internal.file.collections.SimpleFileCollection
 import org.gradle.api.internal.hash.DefaultHasher
+import org.gradle.cache.CacheAccess
+import org.gradle.cache.PersistentStore
 import org.gradle.cache.internal.MapBackedInMemoryStore
 import org.gradle.internal.nativeplatform.filesystem.FileSystem
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
@@ -30,9 +32,10 @@ class MinimalFileSetSnapshotterTest extends Specification {
     public final TestNameTestDirectoryProvider tmpDir = new TestNameTestDirectoryProvider()
 
     def stringInterner = new StringInterner()
-    def snapshotter = new CachingFileSnapshotter(new DefaultHasher(), new MapBackedInMemoryStore(), stringInterner)
+    PersistentStore persistentStore = new MapBackedInMemoryStore()
+    def snapshotter = new CachingFileSnapshotter(new DefaultHasher(), persistentStore, stringInterner)
 
-    TaskArtifactStateCacheAccess cacheAccess = Mock()
+    CacheAccess cacheAccess = persistentStore
     FileResolver fileResolver = Mock()
     FileSystem fileSystem = Mock()
 
@@ -55,24 +58,21 @@ class MinimalFileSetSnapshotterTest extends Specification {
         def collection = new SimpleFileCollection(included, missing, includedDirectory)
 
         when:
-        snapshot = minimalFileSnapshotter.snapshot(collection)
+        snapshot = minimalFileSnapshotter.snapshot(collection, true)
 
         then:
-        findSnapshot(included) instanceof DefaultFileCollectionSnapshotter.FileHashSnapshot
-        findSnapshot(missing) instanceof DefaultFileCollectionSnapshotter.MissingFileSnapshot
-        findSnapshot(includedDirectory) instanceof DefaultFileCollectionSnapshotter.DirSnapshot
+        findSnapshot(included) instanceof FileHashSnapshot
+        findSnapshot(missing) instanceof MissingFileSnapshot
+        findSnapshot(includedDirectory) instanceof DirSnapshot
         !findSnapshot(fileInDirectory)
         !findSnapshot(notIncluded)
 
         and:
-        // getAllFiles() returns missing file snapshots and existing file snapshots, but not directories
-        snapshot.allFiles.sort() == [ included, missing ]
-
-        // getFiles() returns only existing file snapshots
-        snapshot.files == [ included ]
+        // getFiles() returns missing file snapshots and existing file snapshots, but not directories
+        snapshot.files.sort() == [ included, missing ]
     }
 
-    DefaultFileCollectionSnapshotter.IncrementalFileSnapshot findSnapshot(File file) {
+    IncrementalFileSnapshot findSnapshot(File file) {
         snapshot.snapshots.get(file.absolutePath)
     }
 }

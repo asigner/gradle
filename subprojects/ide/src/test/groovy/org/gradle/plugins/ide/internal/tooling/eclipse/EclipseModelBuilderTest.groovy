@@ -18,13 +18,18 @@ package org.gradle.plugins.ide.internal.tooling.eclipse
 
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
+import org.gradle.api.internal.artifacts.ivyservice.projectmodule.LocalComponentRegistry
 import org.gradle.api.plugins.GroovyBasePlugin
 import org.gradle.api.plugins.GroovyPlugin
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.plugins.WarPlugin
 import org.gradle.api.plugins.scala.ScalaBasePlugin
 import org.gradle.api.plugins.scala.ScalaPlugin
+import org.gradle.internal.service.DefaultServiceRegistry
+import org.gradle.plugins.ear.EarPlugin
 import org.gradle.plugins.ide.eclipse.EclipsePlugin
+import org.gradle.plugins.ide.eclipse.EclipseWtpPlugin
 import org.gradle.plugins.ide.eclipse.model.BuildCommand
 import org.gradle.plugins.ide.internal.tooling.EclipseModelBuilder
 import org.gradle.plugins.ide.internal.tooling.GradleProjectBuilder
@@ -137,13 +142,13 @@ class EclipseModelBuilderTest extends Specification {
         eclipseModel.javaSourceSettings."$languageLevelProperty" == JavaVersion.current()
 
         where:
-        type     | compatibilityProperty | languageLevelProperty | projectType | pluginType
-        "source" | "sourceCompatibility" | "sourceLanguageLevel" | "java"      | JavaBasePlugin
-        "target" | "targetCompatibility" | "targetBytecodeLevel" | "java"      | JavaBasePlugin
-        "source" | "sourceCompatibility" | "sourceLanguageLevel" | "scala"     | ScalaBasePlugin
-        "target" | "targetCompatibility" | "targetBytecodeLevel" | "scala"     | ScalaBasePlugin
-        "source" | "sourceCompatibility" | "sourceLanguageLevel" | "groovy"    | GroovyBasePlugin
-        "target" | "targetCompatibility" | "targetBytecodeLevel" | "groovy"    | GroovyBasePlugin
+        type     | compatibilityProperty | languageLevelProperty   | projectType | pluginType
+        "source" | "sourceCompatibility" | "sourceLanguageLevel"   | "java"      | JavaBasePlugin
+        "target" | "targetCompatibility" | "targetBytecodeVersion" | "java"      | JavaBasePlugin
+        "source" | "sourceCompatibility" | "sourceLanguageLevel"   | "scala"     | ScalaBasePlugin
+        "target" | "targetCompatibility" | "targetBytecodeVersion" | "scala"     | ScalaBasePlugin
+        "source" | "sourceCompatibility" | "sourceLanguageLevel"   | "groovy"    | GroovyBasePlugin
+        "target" | "targetCompatibility" | "targetBytecodeVersion" | "groovy"    | GroovyBasePlugin
     }
 
     def "default language levels are set for JVM projects if compatibility is set to null"() {
@@ -158,7 +163,7 @@ class EclipseModelBuilderTest extends Specification {
 
         then:
         eclipseModel.javaSourceSettings.sourceLanguageLevel == org.gradle.api.JavaVersion.current()
-        eclipseModel.javaSourceSettings.targetBytecodeLevel == org.gradle.api.JavaVersion.current()
+        eclipseModel.javaSourceSettings.targetBytecodeVersion == org.gradle.api.JavaVersion.current()
 
         where:
         pluginType << [JavaPlugin, GroovyPlugin, ScalaPlugin]
@@ -180,7 +185,7 @@ class EclipseModelBuilderTest extends Specification {
         where:
         type     | compatibilityProperty | languageLevelProperty
         "source" | "sourceCompatibility" | "sourceLanguageLevel"
-        "target" | "targetCompatibility" | "targetBytecodeLevel"
+        "target" | "targetCompatibility" | "targetBytecodeVersion"
     }
 
     @Unroll
@@ -201,7 +206,7 @@ class EclipseModelBuilderTest extends Specification {
         where:
         type     | compatibilityProperty | languageLevelProperty
         "source" | "sourceCompatibility" | "sourceLanguageLevel"
-        "target" | "targetCompatibility" | "targetBytecodeLevel"
+        "target" | "targetCompatibility" | "targetBytecodeVersion"
     }
 
     @Unroll
@@ -226,12 +231,71 @@ class EclipseModelBuilderTest extends Specification {
         where:
         type     | compatibilityProperty | languageLevelProperty
         "source" | "sourceCompatibility" | "sourceLanguageLevel"
-        "target" | "targetCompatibility" | "targetBytecodeLevel"
+        "target" | "targetCompatibility" | "targetBytecodeVersion"
+    }
+
+    def "non convention source and target compatibility properties are ignored"() {
+        given:
+        def modelBuilder = createEclipseModelBuilder()
+        project.ext.sourceCompatibility = '1.2'
+        project.ext.targetCompatibility = '1.2'
+        project.plugins.apply(JavaPlugin)
+
+        when:
+        def eclipseModel = modelBuilder.buildAll("org.gradle.tooling.model.eclipse.EclipseProject", project)
+
+        then:
+        eclipseModel.javaSourceSettings.sourceLanguageLevel == JavaVersion.current()
+    }
+
+    def "applies eclipse-wtp plugin on web projects"() {
+        given:
+        def modelBuilder = createEclipseModelBuilder()
+        plugins.each { project.pluginManager.apply(it) }
+
+        when:
+        modelBuilder.buildAll("org.gradle.tooling.model.eclipse.EclipseProject", project)
+
+        then:
+        project.plugins.hasPlugin(EclipseWtpPlugin) == hasWtpPlugin
+
+        where:
+        hasWtpPlugin | plugins
+        false        | []
+        false        | [JavaPlugin]
+        true         | [WarPlugin]
+        true         | [EarPlugin]
+        true         | [WarPlugin, EarPlugin]
+    }
+
+    def "sets source folder exclude and include patterns"() {
+        given:
+        def modelBuilder = createEclipseModelBuilder()
+        new File(project.getProjectDir(), 'src/main/java').mkdirs()
+        project.plugins.apply(JavaPlugin)
+        includes.each { project.sourceSets.main.java.include it }
+        excludes.each { project.sourceSets.main.java.exclude it }
+
+        when:
+        def eclipseModel = modelBuilder.buildAll("org.gradle.tooling.model.eclipse.EclipseProject", project)
+
+        then:
+        eclipseModel.sourceDirectories[0].includes == includes
+        eclipseModel.sourceDirectories[0].excludes == excludes
+
+        where:
+        excludes     | includes
+        ['e']        | []
+        []           | ['i']
+        ['e']        | ['i']
+        ['e1', 'e2'] | ['i1', 'i2']
     }
 
     private def createEclipseModelBuilder() {
         def gradleProjectBuilder = Mock(GradleProjectBuilder)
         gradleProjectBuilder.buildAll(_) >> Mock(DefaultGradleProject)
-        new EclipseModelBuilder(gradleProjectBuilder)
+        def serviceRegistry = new DefaultServiceRegistry()
+        serviceRegistry.add(LocalComponentRegistry, Stub(LocalComponentRegistry))
+        new EclipseModelBuilder(gradleProjectBuilder, serviceRegistry)
     }
 }

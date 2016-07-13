@@ -17,9 +17,10 @@
 package org.gradle.tooling.internal.consumer.connection;
 
 import org.gradle.tooling.BuildAction;
+import org.gradle.tooling.connection.ModelResult;
 import org.gradle.tooling.internal.consumer.Distribution;
-import org.gradle.tooling.internal.consumer.parameters.ConsumerOperationParameters;
 import org.gradle.tooling.internal.consumer.TestExecutionRequest;
+import org.gradle.tooling.internal.consumer.parameters.ConsumerOperationParameters;
 import org.gradle.tooling.model.internal.Exceptions;
 
 /**
@@ -42,7 +43,7 @@ public class NoToolingApiConnection implements ConsumerConnection {
     }
 
     public <T> T run(Class<T> type, ConsumerOperationParameters operationParameters) throws UnsupportedOperationException, IllegalStateException {
-        throw Exceptions.unsupportedFeature(operationParameters.getEntryPointName(), distribution, "1.0-milestone-8");
+        throw Exceptions.unsupportedFeature(operationParameters.getEntryPointName(), distribution, "1.2");
     }
 
     public <T> T run(BuildAction<T> action, ConsumerOperationParameters operationParameters) throws UnsupportedOperationException, IllegalStateException {
@@ -51,5 +52,10 @@ public class NoToolingApiConnection implements ConsumerConnection {
 
     public void runTests(TestExecutionRequest testExecutionRequest, ConsumerOperationParameters operationParameters) {
         throw Exceptions.unsupportedFeature(operationParameters.getEntryPointName(), distribution, "2.6");
+    }
+
+    @Override
+    public <T> Iterable<ModelResult<T>> buildModels(Class<T> elementType, ConsumerOperationParameters operationParameters) throws UnsupportedOperationException, IllegalStateException {
+        throw Exceptions.unsupportedFeature(operationParameters.getEntryPointName(), distribution, "2.13");
     }
 }

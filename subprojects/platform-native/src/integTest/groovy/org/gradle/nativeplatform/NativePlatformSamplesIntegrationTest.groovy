@@ -19,17 +19,15 @@ import org.gradle.integtests.fixtures.Sample
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.nativeplatform.fixtures.AbstractInstalledToolChainIntegrationSpec
 import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
-import org.gradle.test.fixtures.file.LeaksFileHandles
 import org.gradle.test.fixtures.file.TestDirectoryProvider
 import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
 import org.junit.Rule
 
-import static org.gradle.nativeplatform.fixtures.ToolChainRequirement.GccCompatible
+import static org.gradle.nativeplatform.fixtures.ToolChainRequirement.GCC_COMPATIBLE
 
 @Requires(TestPrecondition.CAN_INSTALL_EXECUTABLE)
-@LeaksFileHandles
 class NativePlatformSamplesIntegrationTest extends AbstractInstalledToolChainIntegrationSpec {
     @Rule final TestNameTestDirectoryProvider testDirProvider = new TestNameTestDirectoryProvider()
     @Rule public final Sample cppLib = sample(testDirProvider, 'cpp-lib')
@@ -190,7 +188,7 @@ class NativePlatformSamplesIntegrationTest extends AbstractInstalledToolChainInt
         installation(multiProject.dir.file("exe/build/install/main")).exec().out == "Hello, World!\n"
     }
 
-    @RequiresInstalledToolChain(GccCompatible)
+    @RequiresInstalledToolChain(GCC_COMPATIBLE)
     def "target platforms"() {
         given:
         sample targetPlatforms
@@ -266,7 +264,7 @@ Util build type: RELEASE
         run "installMainExecutable", "tasks"
 
         then:
-        executedAndNotSkipped(":compileMainExecutableMainPlatform$platformName", ":installMainExecutable")
+        executedAndNotSkipped(":compileMainExecutableMainExecutablePlatform$platformName", ":installMainExecutable")
 
         and:
         executable(sourcesetVariant.dir.file("build/exe/main/main")).assertExists()

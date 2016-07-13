@@ -16,6 +16,7 @@
 package org.gradle.api.plugins.quality
 
 import org.gradle.test.fixtures.file.LeaksFileHandles
+import org.gradle.util.TestPrecondition
 import org.gradle.util.VersionNumber
 import org.hamcrest.Matcher
 import org.junit.Assume
@@ -40,6 +41,8 @@ class PmdPluginAuxclasspathIntegrationTest extends AbstractPmdPluginVersionInteg
                     mavenCentral()
                 }
                 apply plugin: 'java'
+
+                ${!TestPrecondition.FIX_TO_WORK_ON_JAVA9.fulfilled ? "sourceCompatibility = 1.6" : ""}
             }
 
             project("pmd-rule") {
@@ -61,7 +64,7 @@ class PmdPluginAuxclasspathIntegrationTest extends AbstractPmdPluginVersionInteg
                     ruleSets = ["java-auxclasspath"]
                 }
             }
-        """
+        """.stripIndent()
 
         file("pmd-rule/src/main/resources/rulesets/java/auxclasspath.xml") << rulesetXml()
         file("pmd-rule/src/main/java/org/gradle/pmd/rules/AuxclasspathRule.java") << ruleCode()
@@ -114,10 +117,12 @@ project("rule-using") {
             public class AuxclasspathRule extends AbstractJavaRule {
 
                 private static final String JUNIT_TEST = "junit.framework.TestCase";
+                private static final String CLASS1 = "org.gradle.ruleusing.Class1";
 
                 @Override
                 public Object visit(final ASTCompilationUnit node, final Object data) {
-                    if (node.getClassTypeResolver().classNameExists(JUNIT_TEST)) {
+                    if (node.getClassTypeResolver().classNameExists(JUNIT_TEST)
+                        && node.getClassTypeResolver().classNameExists(CLASS1)) {
                         addViolationWithMessage(data, node, "auxclasspath configured.");
                     } else {
                         addViolationWithMessage(data, node, "auxclasspath not configured.");

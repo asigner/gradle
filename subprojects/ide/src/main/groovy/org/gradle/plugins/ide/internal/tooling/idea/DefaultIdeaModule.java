@@ -18,6 +18,7 @@ package org.gradle.plugins.ide.internal.tooling.idea;
 
 import org.gradle.tooling.internal.gradle.DefaultGradleProject;
 import org.gradle.tooling.internal.gradle.GradleProjectIdentity;
+import org.gradle.tooling.internal.protocol.DefaultIdeaModuleIdentifier;
 import org.gradle.tooling.model.idea.IdeaCompilerOutput;
 
 import java.io.Serializable;
@@ -36,7 +37,11 @@ public class DefaultIdeaModule implements Serializable, GradleProjectIdentity {
 
     private IdeaCompilerOutput compilerOutput;
 
-    private DefaultIdeaModuleJavaSourceSettings javaSourceSettings;
+    private DefaultIdeaJavaLanguageSettings javaLanguageSettings;
+
+    public DefaultIdeaModuleIdentifier getIdentifier() {
+        return new DefaultIdeaModuleIdentifier(gradleProject.getProjectDirectory());
+    }
 
     public String getName() {
         return name;
@@ -95,6 +100,7 @@ public class DefaultIdeaModule implements Serializable, GradleProjectIdentity {
         return this;
     }
 
+    @Override
     public String getPath() {
         return gradleProject.getPath();
     }
@@ -108,12 +114,12 @@ public class DefaultIdeaModule implements Serializable, GradleProjectIdentity {
         return this;
     }
 
-    public DefaultIdeaModuleJavaSourceSettings getJavaSourceSettings() {
-        return javaSourceSettings;
+    public DefaultIdeaJavaLanguageSettings getJavaLanguageSettings() {
+        return javaLanguageSettings;
     }
 
-    public DefaultIdeaModule setJavaSourceSettings(DefaultIdeaModuleJavaSourceSettings javaSourceSettings) {
-        this.javaSourceSettings = javaSourceSettings;
+    public DefaultIdeaModule setJavaLanguageSettings(DefaultIdeaJavaLanguageSettings javaLanguageSettings) {
+        this.javaLanguageSettings = javaLanguageSettings;
         return this;
     }
 

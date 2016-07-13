@@ -38,9 +38,9 @@ class RealWorldNativePluginPerformanceTest extends AbstractCrossVersionPerforman
         runner.testProject = testProject
         runner.tasksToRun = ['build']
         runner.maxExecutionTimeRegression = maxExecutionTimeRegression
-        runner.targetVersions = [ '2.10', 'last' ]
+        runner.targetVersions = ['2.11', '2.13']
         runner.useDaemon = true
-        runner.gradleOpts = ["-Xms4g", "-Xmx4g", "-XX:MaxPermSize=256m", "-XX:+HeapDumpOnOutOfMemoryError"]
+        runner.gradleOpts = ["-Xms4g", "-Xmx4g", "-XX:MaxPermSize=256m"]
 
         if (parallelWorkers) {
             runner.args += ["--parallel", "--max-workers=$parallelWorkers".toString()]
@@ -69,10 +69,9 @@ class RealWorldNativePluginPerformanceTest extends AbstractCrossVersionPerforman
         runner.tasksToRun = ['build']
         runner.args = ["--parallel", "--max-workers=4"]
         runner.maxExecutionTimeRegression = maxExecutionTimeRegression
-        runner.targetVersions = ['2.10', 'last']
+        runner.targetVersions = ['2.11', '2.13']
         runner.useDaemon = true
-        runner.gradleOpts = ["-Xms4g", "-Xmx4g", "-XX:MaxPermSize=256m", "-XX:+HeapDumpOnOutOfMemoryError"]
-        runner.warmUpRuns = 2
+        runner.gradleOpts = ["-Xms4g", "-Xmx4g", "-XX:MaxPermSize=256m"]
         runner.runs = 10
 
         runner.buildExperimentListener = new BuildExperimentListenerAdapter() {
@@ -123,9 +122,9 @@ class RealWorldNativePluginPerformanceTest extends AbstractCrossVersionPerforman
         // header file change causes a single project, two source sets, some files to be recompiled.
         // recompile all sources causes all projects, all source sets, all files to be recompiled.
         buildSize | changeType              | maxExecutionTimeRegression | changedFile                       | changeClosure
-        "medium"  | 'source file change'    | millis(200)                | 'modules/project5/src/src100_c.c' | this.&changeCSource
-        "medium"  | 'header file change'    | millis(5000)               | 'modules/project1/src/src50_h.h'  | this.&changeHeader
-        "medium"  | 'recompile all sources' | millis(5000)               | 'common.gradle'                   | this.&changeArgs
+        "medium"  | 'source file change'    | millis(300)                | 'modules/project5/src/src100_c.c' | this.&changeCSource
+        "medium"  | 'header file change'    | millis(300)                | 'modules/project1/src/src50_h.h'  | this.&changeHeader
+        "medium"  | 'recompile all sources' | millis(1500)               | 'common.gradle'                   | this.&changeArgs
     }
 
     void changeCSource(File file, String originalContent) {

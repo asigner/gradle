@@ -66,7 +66,35 @@ task showBroken << { println configurations.compile.files }
         fails "showBroken"
         failure.assertResolutionFailure(":compile")
             .assertHasCause("Could not parse POM ${module.pom.uri}")
-            .assertHasCause("null name not allowed")
+            .assertHasCause("group cannot be null")
+    }
+
+    def "reports local POM that cannot be parsed"() {
+        given:
+        buildFile << """
+repositories {
+    maven {
+        url "${mavenRepo.uri}"
+    }
+}
+configurations { compile }
+dependencies {
+    compile 'group:projectA:1.2'
+}
+task showBroken << { println configurations.compile.files }
+"""
+
+        and:
+        def module = mavenRepo.module('group', 'projectA', '1.2').publish()
+        module.pomFile.text = "<project/>"
+
+        when:
+        fails "showBroken"
+
+        then:
+        failure.assertResolutionFailure(":compile")
+            .assertHasCause("Could not parse POM ${module.pomFile}")
+            .assertHasCause("group cannot be null")
     }
 
     def "reports missing parent POM"() {
@@ -135,6 +163,6 @@ task showBroken << { println configurations.compile.files }
         failure.assertResolutionFailure(":compile")
             .assertHasCause("Could not parse POM ${child.pom.uri}")
             .assertHasCause("Could not parse POM ${parent.pom.uri}")
-            .assertHasCause("null name not allowed")
+            .assertHasCause("group cannot be null")
     }
 }
